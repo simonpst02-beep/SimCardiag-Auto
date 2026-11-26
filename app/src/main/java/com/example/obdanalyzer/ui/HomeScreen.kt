@@ -308,6 +308,7 @@ fun KeyValue(k: String, v: String) {
 
 private val STEPS = listOf("Connexion au boîtier", "Réveil de la puce OBDLink", "Recherche du langage de la voiture", "Détection des capteurs")
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ConnectPanel(l: Live, wide: Boolean) {
     var devices by remember { mutableStateOf(ObdManager.pairedDevices()) }
@@ -357,10 +358,70 @@ private fun ConnectPanel(l: Live, wide: Boolean) {
             l.error?.let { ErrorBox(it); JournalButton() }
             val parked by ObdManager.vehicles.collectAsState()
             parked.firstOrNull { it.id == ObdManager.settings.value.activeVehicleId }?.let { ParkCard(it) }
+            // Type de boîtier : Bluetooth, Wi-Fi ou câble USB
+            val last = ObdManager.settings.value.lastDevice ?: ""
+            var link by rememberSaveable { mutableIntStateOf(when { com.example.obdanalyzer.obd.Links.isWifi(last) -> 1; com.example.obdanalyzer.obd.Links.isUsb(last) -> 2; else -> 0 }) }
+            Text("Type de boîtier", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                listOf("Bluetooth" to Icons.Rounded.Bluetooth, "Wi-Fi" to Icons.Rounded.Wifi, "Câble USB" to Icons.Rounded.Usb).forEachIndexed { i, (n, ic) ->
+                    SegmentedButton(selected = link == i, onClick = { link = i; ObdManager.clearError() }, shape = SegmentedButtonDefaults.itemShape(i, 3),
+                        icon = { Icon(ic, null) }) { Text(n) }
+                }
+            }
+            when (link) {
+                1 -> WifiConnect(last)
+                2 -> UsbConnect()
+                else -> BluetoothList(devices, btOn) { devices = ObdManager.pairedDevices() }
+            }
+        }
+    }
+    ConnectLayout(wide, left, right)
+}
+
+@Composable
+private fun WifiConnect(last: String) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val parts = last.removePrefix("wifi:").split(":")
+    var host by rememberSaveable { mutableStateOf(if (last.startsWith("wifi:")) parts.getOrElse(0) { "192.168.0.10" } else "192.168.0.10") }
+    var port by rememberSaveable { mutableStateOf(if (last.startsWith("wifi:")) parts.getOrElse(1) { "35000" } else "35000") }
+    Text("1. Dans les réglages Wi-Fi de l'autoradio, connectez-vous au réseau du boîtier (souvent « OBDLink MX… » ou « WiFi_OBDII »). " +
+        "Si Android dit que ce réseau n'a pas Internet, choisissez de rester connecté.\n2. Touchez Se connecter.",
+        style = MaterialTheme.typography.bodyMedium)
+    OutlinedButton(onClick = { runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) } }) {
+        Icon(Icons.Rounded.Wifi, null); Spacer(Modifier.width(6.dp)); Text("Ouvrir les réglages Wi-Fi")
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(host, { host = it.trim() }, label = { Text("Adresse") }, singleLine = true, modifier = Modifier.weight(2f))
+        OutlinedTextField(port, { port = it.filter(Char::isDigit) }, label = { Text("Port") }, singleLine = true, modifier = Modifier.weight(1f))
+    }
+    Text("La plupart des boîtiers : 192.168.0.10, port 35000.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Button(onClick = { ObdManager.connect(com.example.obdanalyzer.obd.Links.wifiAddress(host.ifBlank { "192.168.0.10" }, port.toIntOrNull() ?: 35000)) },
+        modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Se connecter en Wi-Fi") }
+}
+
+@Composable
+private fun UsbConnect() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var found by remember { mutableIntStateOf(com.example.obdanalyzer.obd.Links.usbDevices(ctx).size) }
+    Text("Branchez le câble du boîtier sur une prise USB de l'autoradio, puis touchez Se connecter. " +
+        "Android vous demandera d'autoriser l'accès au câble : acceptez (cochez « toujours » si proposé).",
+        style = MaterialTheme.typography.bodyMedium)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(if (found > 0) "Câble détecté" else "Aucun câble détecté pour l'instant",
+            color = if (found > 0) LocalObd.current.ok else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        TextButton(onClick = { found = com.example.obdanalyzer.obd.Links.usbDevices(ctx).size }) { Icon(Icons.Rounded.Refresh, null); Text("Actualiser") }
+    }
+    Button(onClick = { ObdManager.connect("usb:auto") }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Se connecter par câble USB") }
+}
+
+@Composable
+private fun BluetoothList(devices: List<com.example.obdanalyzer.core.DeviceInfo>, btOn: Boolean, onRefresh: () -> Unit) {
+    run {
+        run {
             if (!btOn) ErrorBox("Le Bluetooth est désactivé. Activez-le puis touchez Actualiser.")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Mes appareils Bluetooth", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                TextButton(onClick = { devices = ObdManager.pairedDevices(); ObdManager.clearError() }) {
+                TextButton(onClick = { onRefresh(); ObdManager.clearError() }) {
                     Icon(Icons.Rounded.Refresh, null); Spacer(Modifier.width(4.dp)); Text("Actualiser")
                 }
             }
@@ -383,6 +444,10 @@ private fun ConnectPanel(l: Live, wide: Boolean) {
             }
         }
     }
+}
+
+@Composable
+private fun ConnectLayout(wide: Boolean, left: @Composable ColumnScope.() -> Unit, right: @Composable ColumnScope.() -> Unit) {
     if (wide) {
         Row(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp), content = left)

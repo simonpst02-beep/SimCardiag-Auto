@@ -10,6 +10,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven("https://jitpack.io")   // pilote série USB (usb-serial-for-android)
     }
 }
 rootProject.name = "SimCarDiag"

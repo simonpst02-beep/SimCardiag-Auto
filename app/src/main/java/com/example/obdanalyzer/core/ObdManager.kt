@@ -16,6 +16,7 @@ import com.example.obdanalyzer.widget.CarWidget
 import com.example.obdanalyzer.obd.Expr
 import com.example.obdanalyzer.obd.MetricDef
 import com.example.obdanalyzer.obd.ObdConnection
+import com.example.obdanalyzer.obd.Links
 import com.example.obdanalyzer.obd.ObdParser
 import com.example.obdanalyzer.obd.Pid
 import com.example.obdanalyzer.obd.Pids
@@ -255,30 +256,32 @@ object ObdManager {
     /** À l'ouverture de l'appli : reconnexion au dernier boîtier utilisé. */
     fun autoConnect() {
         val s = _settings.value
-        if (_live.value.conn == Conn.IDLE && s.autoReconnect && s.lastDevice != null && bluetoothOn()) connect(s.lastDevice)
+        if (_live.value.conn == Conn.IDLE && s.autoReconnect && s.lastDevice != null &&
+            (!Links.isBluetooth(s.lastDevice) || bluetoothOn())) connect(s.lastDevice)
     }
 
     /** Connexion lancée par le démarrage de l'appareil ou la détection Bluetooth. Renvoie false s'il n'y a rien à faire. */
     fun autoConnectFromBackground(): Boolean {
         val dev = _settings.value.lastDevice ?: return false
         if (_live.value.conn != Conn.IDLE) return true
-        if (!bluetoothOn()) return false
+        if (Links.isBluetooth(dev) && !bluetoothOn()) return false
         connect(dev)
         return true
     }
 
     @SuppressLint("MissingPermission")
     fun connect(address: String) {
-        val a = adapter ?: return
+        if (Links.isBluetooth(address) && adapter == null) return
         if (_live.value.conn != Conn.IDLE) return
         sessionJob?.cancel()
         sessionJob = scope.launch {
-            val device = a.getRemoteDevice(address)
-            val name = try { device.name } catch (e: SecurityException) { null } ?: address
+            val name = if (Links.isBluetooth(address))
+                (try { adapter?.getRemoteDevice(address)?.name } catch (e: SecurityException) { null } ?: address)
+            else Links.label(address)
             _live.value = Live(conn = Conn.CONNECTING, device = name)
             ObdService.start(ctx)
             try {
-                openAndInit(device)
+                openAndInit(address)
                 updateSettings { it.copy(lastDevice = address) }
                 startSession()
                 _live.update { it.copy(conn = Conn.CONNECTED, step = 4, message = "Connecté ! ${it.supported.size} capteurs disponibles") }
@@ -289,7 +292,8 @@ object ObdManager {
                 ObdService.stop(ctx)
                 _live.update {
                     it.copy(conn = Conn.IDLE, error = e.message?.takeIf { m -> m.startsWith("La voiture") }
-                        ?: "Impossible de se connecter à $name. Vérifiez que le contact est mis et que le boîtier est bien branché.")
+                        ?: if (!Links.isBluetooth(address) && e.message != null) e.message
+                    else "Impossible de se connecter à $name. Vérifiez que le contact est mis et que le boîtier est bien branché.")
                 }
             }
         }
@@ -299,10 +303,17 @@ object ObdManager {
         _live.update { it.copy(log = it.log + line, step = max(it.step, step)) }
 
     @SuppressLint("MissingPermission")
-    private suspend fun openAndInit(device: android.bluetooth.BluetoothDevice) {
+    private suspend fun openAndInit(address: String) {
         conn.legacy = _settings.value.legacyLink
-        conn.open(device, adapter, btMode)
-        addLog("Bluetooth connecté", 1)
+        when {
+            Links.isWifi(address) -> { Links.openWifi(ctx, conn, address); addLog("Wi-Fi connecté", 1) }
+            Links.isUsb(address) -> { Links.openUsb(ctx, conn); addLog("Câble USB connecté", 1) }
+            else -> {
+                val d = adapter?.getRemoteDevice(address) ?: throw IOException("Bluetooth indisponible")
+                conn.open(d, adapter, btMode)
+                addLog("Bluetooth connecté", 1)
+            }
+        }
         conn.initialize { line, step -> addLog(line, step) }
         val supported = detectSupported()
         addLog("${supported.size} capteurs détectés", 4)
@@ -573,7 +584,7 @@ object ObdManager {
         val now = System.currentTimeMillis()
         silences.addLast(now)
         while (silences.isNotEmpty() && now - silences.first() > 180_000) silences.removeFirst()
-        if (silences.size >= 2) {
+        if (silences.size >= 2 && Links.isBluetooth(_settings.value.lastDevice ?: "")) {
             silences.clear()
             btMode = (btMode + 1) % 3
             conn.note("Coupures répétées : prochaine liaison Bluetooth en mode « ${conn.BT_MODES[btMode]} »")
@@ -816,9 +827,7 @@ object ObdManager {
             while (isActive && System.currentTimeMillis() < until) {
                 delay(wait)
                 try {
-                    @SuppressLint("MissingPermission")
-                    val d = adapter?.getRemoteDevice(address) ?: break
-                    openAndInit(d)
+                    openAndInit(address)
                     _live.update { it.copy(conn = Conn.CONNECTED, message = "Reconnecté au boîtier") }
                     startPolling()
                     return@launch
