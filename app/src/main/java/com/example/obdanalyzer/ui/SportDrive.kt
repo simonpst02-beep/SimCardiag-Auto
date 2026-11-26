@@ -45,6 +45,22 @@ import com.example.obdanalyzer.core.displayValue
 import kotlin.math.cos
 import kotlin.math.sin
 
+/** Style du mode conduite, tiré du thème, de la police et de la couleur choisis dans les réglages. */
+class DriveStyle(val bgCenter: Color, val bgEdge: Color, val accent: Color, val low: Color, val mid: Color, val high: Color,
+                 val family: androidx.compose.ui.text.font.FontFamily, val italic: Boolean, val weight: FontWeight)
+
+fun driveStyle(s: Settings): DriveStyle {
+    val t = s.driveTheme
+    val (fam, it, w) = when (s.driveFont) {
+        com.example.obdanalyzer.core.DriveFont.SPORT -> Triple(androidx.compose.ui.text.font.FontFamily.Default, true, FontWeight.Black)
+        com.example.obdanalyzer.core.DriveFont.MODERN -> Triple(androidx.compose.ui.text.font.FontFamily.SansSerif, false, FontWeight.Light)
+        com.example.obdanalyzer.core.DriveFont.DIGITAL -> Triple(androidx.compose.ui.text.font.FontFamily.Monospace, false, FontWeight.Bold)
+        com.example.obdanalyzer.core.DriveFont.CLASSIC -> Triple(androidx.compose.ui.text.font.FontFamily.Serif, false, FontWeight.Bold)
+    }
+    return DriveStyle(Color(t.bgCenter), Color(t.bgEdge), Color(if (s.driveAccent != 0L) s.driveAccent else t.accent),
+        Color(t.low), Color(t.mid), Color(t.high), fam, it, w)
+}
+
 /**
  * Mode conduite « sport » pour l'autoradio :
  * - à gauche, les boutons musique en colonne ;
@@ -54,16 +70,17 @@ import kotlin.math.sin
 @Composable
 fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
     val obd = LocalObd.current
-    val accent = MaterialTheme.colorScheme.primary
+    val st = driveStyle(s)
+    val accent = st.accent
     val alert = l.alerts.firstOrNull { it.level != Level.OK }
     val rpm = l.values["rpm"]
     val shift = shiftRpmFor(s, v)
     val maxRpm = if (v.fuel == Fuel.DIESEL) 5000 else 7000
     val others = s.driveMetrics.filter { it != "speed" && it != "rpm" }.mapNotNull { ObdManager.metric(it) }.take(6)
-    Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF161A22), Color(0xFF07080B)), radius = 1400f))
+    Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(st.bgCenter, st.bgEdge), radius = 1400f))
         .systemBarsPadding().displayCutoutPadding()) {
         Row(Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (s.mediaButtons || s.spotifyButton) MediaColumn(Modifier.width(78.dp).fillMaxHeight())
+            if (s.mediaButtons || s.spotifyButton) MediaColumn(Modifier.width(78.dp).fillMaxHeight(), accent)
             Column(Modifier.weight(1.35f).fillMaxHeight()) {
                 // en-tête : voiture, état, quitter
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -76,7 +93,7 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
                     }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Tacho(rpm, l.values["speed"], s, shift, maxRpm, accent)
+                    Tacho(rpm, l.values["speed"], s, shift, maxRpm, st)
                     if (alert != null) {
                         val c = levelColor(alert.level)
                         Row(Modifier.align(Alignment.BottomCenter).clip(RoundedCornerShape(14.dp)).background(c).padding(horizontal = 14.dp, vertical = 8.dp),
@@ -95,7 +112,7 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
                             val raw = l.values[d.key]
                             val (value, unit) = displayValue(d.key, raw, if (d.key == "cons") l.consUnit else d.unit, s)
                             val (_, lvl) = hint(d.key, raw, l, v)
-                            SportTile(d.name, value?.let { ObdManager.fmt(it) } ?: "—", unit, lvl, accent, Modifier.weight(1f).fillMaxHeight())
+                            SportTile(d.name, value?.let { ObdManager.fmt(it) } ?: "—", unit, lvl, st, Modifier.weight(1f).fillMaxHeight())
                         }
                         if (row.size == 1 && others.size > 3) Spacer(Modifier.weight(1f))
                     }
@@ -107,7 +124,8 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
 
 /** Compte-tours en arc de 240°, graduations tous les 1 000 tr/min, vitesse au centre. */
 @Composable
-private fun Tacho(rpm: Double?, speed: Double?, s: Settings, shift: Int, maxRpm: Int, accent: Color) {
+private fun Tacho(rpm: Double?, speed: Double?, s: Settings, shift: Int, maxRpm: Int, st: DriveStyle) {
+    val accent = st.accent
     val target = ((rpm ?: 0.0) / maxRpm).toFloat().coerceIn(0f, 1f)
     val frac by animateFloatAsState(target, tween(180), label = "rpm")
     val over = (rpm ?: 0.0) >= shift
@@ -126,11 +144,11 @@ private fun Tacho(rpm: Double?, speed: Double?, s: Settings, shift: Int, maxRpm:
             // piste
             drawArc(Color.White.copy(alpha = 0.06f), start, sweep, false, tl, sz, style = Stroke(stroke, cap = StrokeCap.Round))
             // zone rouge après le régime de passage
-            drawArc(Color(0xFFFF2D2D).copy(alpha = 0.18f), start + sweep * shiftFrac, sweep * (1 - shiftFrac), false, tl, sz, style = Stroke(stroke, cap = StrokeCap.Butt))
+            drawArc(st.high.copy(alpha = 0.18f), start + sweep * shiftFrac, sweep * (1 - shiftFrac), false, tl, sz, style = Stroke(stroke, cap = StrokeCap.Butt))
             // aiguille en arc : dégradé vert → orange → rouge
             if (frac > 0.002f) {
-                val colors = listOf(Color(0xFF2EE59D), Color(0xFFFFC233), Color(0xFFFF2D2D))
-                val col = when { over -> Color(0xFFFF2D2D).copy(alpha = blink); frac < shiftFrac * 0.6f -> colors[0]; frac < shiftFrac -> colors[1]; else -> colors[2] }
+                val colors = listOf(st.low, st.mid, st.high)
+                val col = when { over -> st.high.copy(alpha = blink); frac < shiftFrac * 0.6f -> colors[0]; frac < shiftFrac -> colors[1]; else -> colors[2] }
                 drawArc(col.copy(alpha = col.alpha * 0.25f), start, sweep * frac, false, Offset(tl.x - stroke * 0.3f, tl.y - stroke * 0.3f),
                     Size(sz.width + stroke * 0.6f, sz.height + stroke * 0.6f), style = Stroke(stroke * 1.8f, cap = StrokeCap.Round))
                 drawArc(col, start, sweep * frac, false, tl, sz, style = Stroke(stroke, cap = StrokeCap.Round))
@@ -148,12 +166,14 @@ private fun Tacho(rpm: Double?, speed: Double?, s: Settings, shift: Int, maxRpm:
         val (sp, unit) = displayValue("speed", speed, "km/h", s)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             val big = with(density) { (side * 0.30f).toSp() }
-            Text(sp?.let { "%.0f".format(it) } ?: "—", fontSize = big, lineHeight = big, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, color = Color.White)
+            Text(sp?.let { "%.0f".format(it) } ?: "—", fontSize = big, lineHeight = big, fontWeight = st.weight, fontFamily = st.family,
+                fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal, color = Color.White)
             Text(unit.uppercase(), color = Color.White.copy(alpha = 0.6f), letterSpacing = 4.sp, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.clip(RoundedCornerShape(50)).border(1.dp, accent.copy(alpha = 0.6f), RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.Bottom) {
-                Text(rpm?.let { "%.0f".format(it) } ?: "—", fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, fontSize = 26.sp, color = Color.White)
+                Text(rpm?.let { "%.0f".format(it) } ?: "—", fontWeight = FontWeight.Black, fontFamily = st.family,
+                    fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal, fontSize = 26.sp, color = Color.White)
                 Spacer(Modifier.width(6.dp))
                 Text("TR/MIN", fontSize = 12.sp, letterSpacing = 2.sp, color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 4.dp))
             }
@@ -163,7 +183,8 @@ private fun Tacho(rpm: Double?, speed: Double?, s: Settings, shift: Int, maxRpm:
 
 /** Tuile de mesure : barre de couleur à gauche (vert / orange / rouge), nom en petites capitales, valeur en italique. */
 @Composable
-private fun SportTile(name: String, value: String, unit: String, lvl: Level?, accent: Color, modifier: Modifier) {
+private fun SportTile(name: String, value: String, unit: String, lvl: Level?, st: DriveStyle, modifier: Modifier) {
+    val accent = st.accent
     val obd = LocalObd.current
     val bar = when (lvl) { Level.BAD -> obd.bad; Level.WARN -> obd.warn; else -> accent }
     BoxWithConstraints(modifier.clip(RoundedCornerShape(18.dp))
@@ -179,7 +200,8 @@ private fun SportTile(name: String, value: String, unit: String, lvl: Level?, ac
             val byW = tileW / (maxOf(value.length, 2) * 0.66f)
             val fs = with(density) { minOf(byH, byW).coerceIn(16.dp, 72.dp).toSp() }
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(value, fontSize = fs, lineHeight = fs, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic,
+                Text(value, fontSize = fs, lineHeight = fs, fontWeight = if (st.weight == FontWeight.Light) FontWeight.Normal else FontWeight.Black,
+                    fontFamily = st.family, fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal,
                     color = if (lvl == Level.BAD || lvl == Level.WARN) bar else Color.White, maxLines = 1, softWrap = false)
                 Spacer(Modifier.width(4.dp))
                 Text(unit, fontSize = 13.sp, color = Color.White.copy(alpha = 0.55f), maxLines = 1, modifier = Modifier.padding(bottom = 6.dp))

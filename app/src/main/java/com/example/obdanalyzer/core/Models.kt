@@ -8,6 +8,18 @@ enum class Fuel(val label: String, val afr: Double, val densityGPerL: Double) {
 }
 
 enum class ThemeMode(val label: String) { SYSTEM("Comme le téléphone"), LIGHT("Clair"), DARK("Sombre"), AUTO_HOURS("Nuit de 19 h à 7 h") }
+/** Thèmes du mode conduite : fond, couleur principale, couleurs du compte-tours. */
+enum class DriveTheme(val label: String, val bgCenter: Long, val bgEdge: Long, val accent: Long, val low: Long, val mid: Long, val high: Long) {
+    RACE("Course", 0xFF1A1416, 0xFF07080B, 0xFFE10600, 0xFF2EE59D, 0xFFFFC233, 0xFFFF2D2D),
+    NEON("Néon", 0xFF0D1A12, 0xFF040806, 0xFF39FF14, 0xFF39FF14, 0xFFE6FF00, 0xFFFF2D6F),
+    GLACIER("Glacier", 0xFF0F1C2B, 0xFF050A12, 0xFF2EC7FF, 0xFF2EC7FF, 0xFF8A7DFF, 0xFFFF4D8D),
+    GOLD("Luxe or", 0xFF1C1810, 0xFF080706, 0xFFE8B64C, 0xFFF3E2B3, 0xFFE8B64C, 0xFFFF5A36),
+    SYNTH("Rétro 80", 0xFF1E0F2E, 0xFF0A0512, 0xFFFF3EC8, 0xFF00E5FF, 0xFFFF3EC8, 0xFFFFE14D),
+}
+
+/** Polices du mode conduite (polices de l'appareil, aucun téléchargement). */
+enum class DriveFont(val label: String) { SPORT("Sport (italique)"), MODERN("Moderne"), DIGITAL("Digital"), CLASSIC("Classique") }
+
 enum class LayoutMode(val label: String) { AUTO("Automatique"), PHONE("Téléphone"), TABLET("Tablette"), CAR("Autoradio") }
 enum class Orientation(val label: String) { AUTO("Automatique"), PORTRAIT("Portrait"), LANDSCAPE("Paysage") }
 enum class PollRate(val label: String, val delayMs: Long) { ECO("Économie de batterie", 250), NORMAL("Normale", 60), FAST("Rapide", 0) }
@@ -175,7 +187,11 @@ data class Settings(
     val shiftLight: Boolean = true,
     val shiftRpm: Int = 0,
     /** Connexion « comme hier soir » (méthode de la 2.0.35) : recherche de protocole libre, dialogue général, délais longs. */
-    val legacyLink: Boolean = false,                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
+    val legacyLink: Boolean = false,
+    // Apparence du mode conduite sport
+    val driveTheme: DriveTheme = DriveTheme.RACE,
+    val driveFont: DriveFont = DriveFont.SPORT,
+    val driveAccent: Long = 0,                // 0 = couleur du thème, sinon couleur choisie (ARGB)                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
     val drivingLock: Boolean = true,
     val showHealth: Boolean = true,           // carte « État du véhicule » sur l'accueil
     // GPS
