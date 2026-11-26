@@ -143,13 +143,25 @@ fun ObdRoot() {
                             when (tab) {
                                 0 -> HomeScreen(l, v, wide, car, locked) { if (!locked) tab = it }
                                 1 -> DiagScreen(l, wide)
-                                2 -> if (wide) MoreScreen(trips, vehicles, v, s, l) { tab = 0 } else TripsScreen(trips, v, l, wide)
+                                2 -> if (wide && com.example.obdanalyzer.AppFlavor.CAR) MoreScreen(trips, vehicles, v, s, l) { tab = 0 } else TripsScreen(trips, v, l, wide)
                                 else -> GarageScreen(vehicles, v, s, l.stats.distanceKm, wide)
                             }
                         }
                     }
                 }
-                if (wide) {
+                if (wide && !com.example.obdanalyzer.AppFlavor.CAR) {
+                    Row(Modifier.fillMaxSize().systemBarsPadding()) {
+                        NavigationRail(containerColor = Color.Transparent) {
+                            Spacer(Modifier.height(12.dp))
+                            TABS.forEachIndexed { i, t ->
+                                NavigationRailItem(selected = tab == i, onClick = { tab = i }, enabled = !locked || i == 0,
+                                    icon = { TabIcon(t, i == 1 && !l.dtcs.isNullOrEmpty()) }, label = { Text(t.label) })
+                            }
+                        }
+                        VerticalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
+                        content(Modifier.weight(1f))
+                    }
+                } else if (wide) {
                     // SimCarDiag Auto : une seule barre de 5 gros boutons, faciles à toucher en roulant
                     Row(Modifier.fillMaxSize().systemBarsPadding()) {
                         CarRail(
@@ -219,14 +231,15 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
         // horloge (la barre d'Android est masquée en plein écran)
         Text(clockText(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
         if (conn == Conn.CONNECTED || conn == Conn.RECONNECTING) {
-            if (!wide) FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
+            if (!(wide && com.example.obdanalyzer.AppFlavor.CAR)) FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
             if (!locked) IconButton(onClick = { ask = true }) { Icon(Icons.Rounded.PowerSettingsNew, "Déconnecter") }
         } else if (conn == Conn.CONNECTING) {
             IconButton(onClick = { ObdManager.disconnect() }) { Icon(Icons.Rounded.Close, "Annuler") }
         }
         // raccourci : stations les moins chères autour de soi (désactivé en roulant)
-        if (!wide) IconButton(onClick = onPrices, enabled = !locked) { Icon(Icons.Rounded.LocalGasStation, "Carburant le moins cher") }
-        if (!wide) IconButton(onClick = onSettings, enabled = !locked) {
+        val car = wide && com.example.obdanalyzer.AppFlavor.CAR
+        if (!car) IconButton(onClick = onPrices, enabled = !locked) { Icon(Icons.Rounded.LocalGasStation, "Carburant le moins cher") }
+        if (!car) IconButton(onClick = onSettings, enabled = !locked) {
             BadgedBox(badge = { if (updateDot) Badge(containerColor = MaterialTheme.colorScheme.primary) }) { Icon(Icons.Rounded.Settings, "Paramètres") }
         }
     }
