@@ -186,6 +186,44 @@ object ObdManager {
         _perf.value = store.loadPerf()
         gps = GpsTracker(ctx)
         pruneTrips()
+        startZoneWatch()
+    }
+
+    /**
+     * Zones de danger aussi quand le boîtier n'est pas connecté : il suffit du GPS de l'appareil.
+     * (Connecté, c'est la boucle de lecture qui s'en charge, avec les autres alertes.)
+     */
+    private fun startZoneWatch() {
+        scope.launch {
+            var loaded = false
+            var wasIn = false
+            while (true) {
+                delay(2000)
+                val s = _settings.value
+                if (!s.dangerZones) { wasIn = false; continue }
+                if (!loaded) { loaded = DangerZones.load(ctx) > 0 }
+                if (_live.value.conn != Conn.IDLE) { wasIn = false; continue }
+                gps.start()
+                val inside = gps.fresh()?.let { DangerZones.check(it) } ?: false
+                if (inside && !wasIn) {
+                    _live.update { it.copy(message = "Zone de danger : respectez les limitations, soyez prudent.") }
+                    alerts.play(false, s.sound && !s.voiceAlerts, s.vibration)
+                    if (s.voiceAlerts) alerts.speak("Zone de danger")
+                }
+                wasIn = inside
+            }
+        }
+    }
+
+    /** Pour les réglages : nombre de zones chargées, zones autour de soi, problème éventuel. */
+    fun zoneStatus(): String {
+        val n = DangerZones.count()
+        val err = DangerZones.lastError
+        if (n == 0) return err ?: "Liste pas encore chargée (internet nécessaire)"
+        val loc = gps.fresh() ?: FuelPrices.lastLocation(ctx)
+        val near = loc?.let { DangerZones.around(it, 10.0) }
+        val inside = loc?.let { DangerZones.check(it) } == true
+        return "$n zones chargées" + (near?.let { " · $it à moins de 10 km" } ?: " · position inconnue") + (if (inside) " · vous êtes dans une zone" else "")
     }
 
     val logsDir get() = store.logsDir

@@ -424,13 +424,14 @@ private fun AlertsCard(s: Settings) {
         if (s.dangerZones) {
             val ctxZ = LocalContext.current
             val scopeZ = rememberCoroutineScope()
-            var zn by remember { mutableIntStateOf(com.example.obdanalyzer.core.DangerZones.count()) }
-            LaunchedEffect(Unit) { zn = com.example.obdanalyzer.core.DangerZones.load(ctxZ) }
+            var status by remember { mutableStateOf("Chargement…") }
+            LaunchedEffect(Unit) { com.example.obdanalyzer.core.DangerZones.load(ctxZ); status = ObdManager.zoneStatus() }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (zn > 0) "$zn zones chargées" else "Liste pas encore téléchargée (internet nécessaire)",
-                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                TextButton(onClick = { scopeZ.launch { zn = com.example.obdanalyzer.core.DangerZones.load(ctxZ, force = true) } }) { Text("Mettre à jour") }
+                Text(status, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = { status = "Téléchargement…"; scopeZ.launch { com.example.obdanalyzer.core.DangerZones.load(ctxZ, force = true); status = ObdManager.zoneStatus() } }) { Text("Mettre à jour") }
             }
+            Text("Fonctionne aussi sans le boîtier, avec le GPS de l'appareil. Annonce à l'entrée de chaque zone (son ou voix selon vos réglages d'alerte).",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SwitchRow("Rappels d'entretien par notification", "Une fois par jour, même appli fermée : vidange, contrôle technique, assurance…", s.maintNotif) { v ->
             ObdManager.updateSettings { it.copy(maintNotif = v) }

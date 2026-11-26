@@ -26,13 +26,32 @@ object DangerZones {
 
     fun count() = zones.size
 
+    /** Dernier problème rencontré (téléchargement, format), affiché dans les réglages. */
+    @Volatile var lastError: String? = null; private set
+
+    /** Nombre de zones à moins de [km] km (sans jamais donner leur position). */
+    fun around(loc: Location, km: Double): Int {
+        val d = FloatArray(1)
+        return zones.count { z ->
+            kotlin.math.abs(z.lat - loc.latitude) < km / 100 && kotlin.math.abs(z.lon - loc.longitude) < km / 70 &&
+                run { Location.distanceBetween(loc.latitude, loc.longitude, z.lat, z.lon, d); d[0] <= km * 1000 }
+        }
+    }
+
     /** Charge la liste (téléchargement si absente ou vieille de plus de 30 jours). Renvoie le nombre de zones. */
     suspend fun load(ctx: Context, force: Boolean = false): Int = withContext(Dispatchers.IO) {
         val f = file(ctx)
+        lastError = null
         if (force || !f.exists() || System.currentTimeMillis() - f.lastModified() > 30L * 86_400_000) {
-            runCatching { download(f) }
+            runCatching { download(f) }.onFailure { lastError = "Téléchargement impossible (${it.message ?: "pas d'internet"})" }
         }
-        if (f.exists()) zones = parse(f.readText())
+        if (f.exists()) {
+            // le fichier officiel peut être en UTF-8 ou en Latin-1
+            val bytes = f.readBytes()
+            val text = String(bytes, Charsets.UTF_8).let { if (it.contains('\uFFFD')) String(bytes, Charsets.ISO_8859_1) else it }.removePrefix("\uFEFF")
+            zones = parse(text)
+            if (zones.isEmpty()) lastError = "Fichier téléchargé mais illisible (format changé ?)"
+        } else if (lastError == null) lastError = "Liste pas encore téléchargée"
         zones.size
     }
 
@@ -60,11 +79,15 @@ object DangerZones {
         val sep = if (lines[0].count { it == ';' } > lines[0].count { it == ',' }) ';' else ','
         fun split(l: String) = l.split(sep).map { it.trim().trim('"') }
         val head = split(lines[0]).map { it.lowercase() }
-        val iLat = head.indexOfFirst { "lat" in it }
-        val iLon = head.indexOfFirst { "lon" in it || "lng" in it }
+        // colonnes repérées en priorité par leur nom exact (« longueur_troncon » contient aussi « lon » !)
+        fun col(exact: List<String>, part: List<String>) = head.indexOfFirst { it in exact }.takeIf { it >= 0 }
+            ?: head.indexOfFirst { h -> part.any { p -> h.startsWith(p) } }
+        val iLat = col(listOf("latitude", "lat", "y"), listOf("lat"))
+        val iLon = col(listOf("longitude", "lon", "lng", "long", "x"), listOf("longit", "lng"))
         if (iLat < 0 || iLon < 0) return emptyList()
         val iRoute = head.indexOfFirst { "route" in it || "voie" in it }
-        val iVma = head.indexOfFirst { "vma" in it || "vitesse" in it || "kmh" in it }
+        val iVma = head.indexOfFirst { "vma" in it || ("vitesse" in it && "lourd" !in it) }.takeIf { it >= 0 }
+            ?: head.indexOfFirst { "vitesse" in it || "kmh" in it }
         fun num(s: String?) = s?.replace(',', '.')?.toDoubleOrNull()
         return lines.drop(1).mapNotNull { l ->
             // avec « , » comme séparateur, les décimales sont des points ; avec « ; », elles peuvent être des virgules
