@@ -328,13 +328,16 @@ private fun DriveModeCard(s: Settings) {
                 val on = s.driveTheme == t
                 Surface(onClick = { ObdManager.updateSettings { it.copy(driveTheme = t, driveAccent = 0) } },
                     shape = RoundedCornerShape(14.dp), border = BorderStroke(if (on) 3.dp else 1.dp, if (on) Color(t.accent) else MaterialTheme.colorScheme.outlineVariant)) {
-                    Column(Modifier.background(Brush.radialGradient(listOf(Color(t.bgCenter), Color(t.bgEdge)))).padding(10.dp).width(110.dp)) {
+                    Box(Modifier.background(Brush.radialGradient(listOf(Color(t.bgCenter), Color(t.bgEdge))))) {
+                    if (t.carbon) CarbonWeave(Modifier.matchParentSize())
+                    Column(Modifier.padding(10.dp).width(110.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             listOf(t.low, t.mid, t.high).forEach { c -> Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(50)).background(Color(c))) }
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text(t.label, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(t.label, color = Color(t.text), fontWeight = FontWeight.Bold, maxLines = 1)
                         Box(Modifier.padding(top = 4.dp).width(40.dp).height(4.dp).background(Color(t.accent)))
+                    }
                     }
                 }
             }

@@ -47,7 +47,8 @@ import kotlin.math.sin
 
 /** Style du mode conduite, tiré du thème, de la police et de la couleur choisis dans les réglages. */
 class DriveStyle(val bgCenter: Color, val bgEdge: Color, val accent: Color, val low: Color, val mid: Color, val high: Color,
-                 val family: androidx.compose.ui.text.font.FontFamily, val italic: Boolean, val weight: FontWeight)
+                 val family: androidx.compose.ui.text.font.FontFamily, val italic: Boolean, val weight: FontWeight,
+                 val carbon: Boolean = false, val text: Color = Color.White)
 
 fun driveStyle(s: Settings): DriveStyle {
     val t = s.driveTheme
@@ -58,7 +59,7 @@ fun driveStyle(s: Settings): DriveStyle {
         com.example.obdanalyzer.core.DriveFont.CLASSIC -> Triple(androidx.compose.ui.text.font.FontFamily.Serif, false, FontWeight.Bold)
     }
     return DriveStyle(Color(t.bgCenter), Color(t.bgEdge), Color(if (s.driveAccent != 0L) s.driveAccent else t.accent),
-        Color(t.low), Color(t.mid), Color(t.high), fam, it, w)
+        Color(t.low), Color(t.mid), Color(t.high), fam, it, w, t.carbon, Color(t.text))
 }
 
 /**
@@ -79,6 +80,7 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
     val others = s.driveMetrics.filter { it != "speed" && it != "rpm" }.mapNotNull { ObdManager.metric(it) }.take(6)
     Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(st.bgCenter, st.bgEdge), radius = 1400f))
         .systemBarsPadding().displayCutoutPadding()) {
+        if (st.carbon) CarbonWeave(Modifier.fillMaxSize())
         Row(Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (s.mediaButtons || s.spotifyButton) MediaColumn(Modifier.width(78.dp).fillMaxHeight(), accent)
             Column(Modifier.weight(1.35f).fillMaxHeight()) {
@@ -167,13 +169,13 @@ private fun Tacho(rpm: Double?, speed: Double?, s: Settings, shift: Int, maxRpm:
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             val big = with(density) { (side * 0.30f).toSp() }
             Text(sp?.let { "%.0f".format(it) } ?: "—", fontSize = big, lineHeight = big, fontWeight = st.weight, fontFamily = st.family,
-                fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal, color = Color.White)
+                fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal, color = st.text)
             Text(unit.uppercase(), color = Color.White.copy(alpha = 0.6f), letterSpacing = 4.sp, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.clip(RoundedCornerShape(50)).border(1.dp, accent.copy(alpha = 0.6f), RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.Bottom) {
                 Text(rpm?.let { "%.0f".format(it) } ?: "—", fontWeight = FontWeight.Black, fontFamily = st.family,
-                    fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal, fontSize = 26.sp, color = Color.White)
+                    fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal, fontSize = 26.sp, color = st.text)
                 Spacer(Modifier.width(6.dp))
                 Text("TR/MIN", fontSize = 12.sp, letterSpacing = 2.sp, color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 4.dp))
             }
@@ -202,10 +204,32 @@ private fun SportTile(name: String, value: String, unit: String, lvl: Level?, st
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(value, fontSize = fs, lineHeight = fs, fontWeight = if (st.weight == FontWeight.Light) FontWeight.Normal else FontWeight.Black,
                     fontFamily = st.family, fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal,
-                    color = if (lvl == Level.BAD || lvl == Level.WARN) bar else Color.White, maxLines = 1, softWrap = false)
+                    color = if (lvl == Level.BAD || lvl == Level.WARN) bar else st.text, maxLines = 1, softWrap = false)
                 Spacer(Modifier.width(4.dp))
                 Text(unit, fontSize = 13.sp, color = Color.White.copy(alpha = 0.55f), maxLines = 1, modifier = Modifier.padding(bottom = 6.dp))
             }
         }
+    }
+}
+
+
+/** Tissage fibre de carbone (thèmes « Carbone »). */
+@Composable
+fun CarbonWeave(modifier: Modifier) {
+    Canvas(modifier) {
+        val c = 10f
+        val a = Color.White.copy(alpha = 0.06f); val b = Color.White.copy(alpha = 0.02f)
+        var y = 0f; var row = 0
+        while (y < size.height) {
+            var x = 0f; var col = 0
+            while (x < size.width) {
+                val hz = (row + col) % 2 == 0
+                drawRect(if (hz) a else b, Offset(x, y), Size(c, c * 0.9f))
+                drawRect(if (hz) b else a, Offset(x + c, y), Size(c * 0.9f, c))
+                x += 2 * c; col++
+            }
+            y += c; row++
+        }
+        drawRect(Brush.radialGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)), radius = size.maxDimension * 0.7f))
     }
 }
