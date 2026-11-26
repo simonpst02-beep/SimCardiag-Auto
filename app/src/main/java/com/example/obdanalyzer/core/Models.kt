@@ -120,6 +120,8 @@ data class Vehicle(
     val parkAt: Long = 0,
     /** Le carburant a déjà été détecté automatiquement une fois : ensuite, on respecte le choix de l'utilisateur. */
     val fuelAutoSet: Boolean = false,
+    /** Rapports de boîte appris en roulant : km/h pour 1 000 tr/min, du 1er au dernier. */
+    val gearRatios: List<Double> = emptyList(),
 )
 
 data class TripSummary(
@@ -205,7 +207,9 @@ data class Settings(
     val driveTheme: DriveTheme = DriveTheme.RACE,
     val driveFont: DriveFont = DriveFont.SPORT,
     val driveAccent: Long = 0,                // 0 = couleur du thème, sinon couleur choisie (ARGB)
-    val driveBg: DriveBg = DriveBg.AUTO,                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
+    val driveBg: DriveBg = DriveBg.AUTO,
+    val nightDim: Boolean = true,             // assombrir le mode conduite la nuit
+    val coldAdvice: Boolean = true,           // conseil moteur froid                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
     val drivingLock: Boolean = true,
     val showHealth: Boolean = true,           // carte « État du véhicule » sur l'accueil
     // GPS

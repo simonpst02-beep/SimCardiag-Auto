@@ -270,7 +270,7 @@ object ObdManager {
 
     /** Toutes les mesures affichables pour le véhicule actif. */
     fun metricDefs(): List<MetricDef> =
-        Pids.ALL.map { it.def } + listOf(Pids.VOLT, Pids.CONS, Pids.LEFT, Pids.RANGE, Pids.GPSV) +
+        Pids.ALL.map { it.def } + listOf(Pids.VOLT, Pids.CONS, Pids.LEFT, Pids.RANGE, Pids.GPSV, Pids.BOOST, Pids.GEAR) +
             activeVehicle().customPids.map { MetricDef(it.key, it.name, it.unit, it.min, it.max, Family.CUSTOM) }
 
     fun metric(key: String?): MetricDef? = metricDefs().firstOrNull { it.key == key }
@@ -668,6 +668,48 @@ object ObdManager {
         }
     }
 
+    // ---------------------------------------------------------------- rapports de boîte
+
+    // regroupement des rapports km/h pour 1 000 tr/min : centre, nombre d'échantillons
+    private val gearClusters = mutableListOf<DoubleArray>()
+    private var prevSpeedForGear: Double? = null
+    private var gearSaveTimer = 0.0
+
+    /**
+     * Apprend les rapports : en régime stable (ni embrayage ni accélération forte), le rapport vitesse / régime
+     * est constant pour une vitesse donnée. On regroupe les valeurs proches (à 6 % près) ; les groupes
+     * assez fournis deviennent les rapports, triés du 1er au 5e (ou 6e).
+     */
+    private fun learnGear(v: Vehicle, speed: Double, rpm: Double, dt: Double) {
+        val prev = prevSpeedForGear; prevSpeedForGear = speed
+        if (speed < 8 || rpm < 1000 || dt !in 0.05..2.0 || prev == null) return
+        if (kotlin.math.abs(speed - prev) / dt > 4.0) return          // changement de vitesse ou embrayage en cours
+        val r = speed / rpm * 1000
+        if (gearClusters.isEmpty()) v.gearRatios.forEach { gearClusters += doubleArrayOf(it, 50.0) }
+        val near = gearClusters.minByOrNull { kotlin.math.abs(it[0] - r) / it[0] }
+        if (near != null && kotlin.math.abs(near[0] - r) / near[0] < 0.06) {
+            near[1] += 1.0
+            near[0] += (r - near[0]) / near[1].coerceAtMost(200.0)
+        } else if (gearClusters.size < 8) gearClusters += doubleArrayOf(r, 1.0)
+        gearSaveTimer += dt
+        if (gearSaveTimer > 30) {
+            gearSaveTimer = 0.0
+            val learned = gearClusters.filter { it[1] >= 25 }.map { it[0] }.sorted().take(6)
+            if (learned.size >= 2 && learned != v.gearRatios) updateVehicle(v.id) { it.copy(gearRatios = learned) }
+        }
+    }
+
+    /** Rapport engagé (1, 2, 3…) si le rapport vitesse / régime correspond à un rapport appris (à 7 % près). */
+    private fun gearOf(v: Vehicle, speed: Double, rpm: Double): Int? {
+        if (speed < 3 || rpm < 600 || v.gearRatios.size < 2) return null
+        val r = speed / rpm * 1000
+        val i = v.gearRatios.indices.minByOrNull { kotlin.math.abs(v.gearRatios[it] - r) / v.gearRatios[it] } ?: return null
+        return if (kotlin.math.abs(v.gearRatios[i] - r) / v.gearRatios[i] < 0.07) i + 1 else null
+    }
+
+    /** Oublier les rapports appris (après un changement de véhicule ou de boîte). */
+    fun resetGears() { gearClusters.clear(); updateActive { it.copy(gearRatios = emptyList()) } }
+
     private var lphSmooth: Double? = null
     private var consSource = ""
 
@@ -730,6 +772,13 @@ object ObdManager {
         if (s0.gpsCorrect && v.speedSampleKm >= 10 && obdV != null) values["speed"] = obdV * v.speedFactor
         val speed = values["speed"]
         val rpm = values["rpm"]
+        // Pression de turbo : pression d'admission moins pression atmosphérique (en bar)
+        values["map"]?.let { map -> values["boost"] = ((map - (values["baro"] ?: 101.3)) / 100.0).coerceAtLeast(-0.2) }
+        // Rapport engagé : appris sur les premiers kilomètres, puis reconnu en direct
+        if (speed != null && rpm != null) {
+            learnGear(v, speed, rpm, dt)
+            gearOf(v, speed, rpm)?.let { values["gear"] = it.toDouble() }
+        }
         val lph = estimateLph(values, v)
         var unit = "L/100km"
         if (lph != null) {
@@ -921,8 +970,15 @@ object ObdManager {
         }
     }
 
+    private var sessionDist = 0.0
+    private var sessionFuel = 0.0
+    private var sessionEco = 100
+    private var sessionTips = emptyList<String>()
+
     private fun endSession(msg: String?) {
         pollJob?.cancel()
+        sessionDist = dist; sessionFuel = fuel; sessionEco = eco.score; sessionTips = eco.tips()
+        prevSpeedForGear = null
         val file = logger?.stop()
         logger = null
         if (dist > 0.3 && sessionStart > 0) {
@@ -960,7 +1016,12 @@ object ObdManager {
         recFile = null
         sessionStart = 0
         dist = 0.0
-        _live.value = Live(conn = Conn.IDLE, message = msg)
+        // Bilan du trajet : distance, carburant, note d'éco-conduite et le conseil principal
+        val summary = if (sessionDist > 0.3) {
+            val tip = sessionTips.firstOrNull()
+            "Trajet : ${fmt(sessionDist)} km · ${"%.1f".format(sessionFuel)} L · éco-conduite $sessionEco/100" + (tip?.let { "\n$it" } ?: "")
+        } else null
+        _live.value = Live(conn = Conn.IDLE, message = listOfNotNull(msg, summary).joinToString("\n").ifBlank { null })
         _ecu.value = EcuScan()
         pollPaused = false
         _battery.value = BatteryTest()

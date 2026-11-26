@@ -47,6 +47,8 @@ fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f), maxLines = 1)
                 // en paysage, les boutons musique tiennent sur la ligne du haut ; en portrait, ils ont leur propre ligne
                 if (landscape && (s.mediaButtons || s.spotifyButton)) { MediaBar(size = if (compact) 44.dp else 56.dp); Spacer(Modifier.width(12.dp)) }
+                Text(clockText(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(10.dp))
                 if (compact) FilledTonalIconButton(onClick = onExit) { Icon(Icons.Rounded.Close, "Quitter") }
                 else FilledTonalButton(onClick = onExit, modifier = Modifier.height(52.dp)) {
                     Icon(Icons.Rounded.Close, null); Spacer(Modifier.width(6.dp)); Text("Quitter")

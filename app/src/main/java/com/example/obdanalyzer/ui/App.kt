@@ -216,6 +216,8 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
             }
         }
         if (media && wide) { MediaBar(size = 48.dp); Spacer(Modifier.width(8.dp)) }
+        // horloge (la barre d'Android est masquée en plein écran)
+        Text(clockText(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
         if (conn == Conn.CONNECTED || conn == Conn.RECONNECTING) {
             if (!wide) FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
             if (!locked) IconButton(onClick = { ask = true }) { Icon(Icons.Rounded.PowerSettingsNew, "Déconnecter") }

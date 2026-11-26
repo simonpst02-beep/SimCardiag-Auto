@@ -382,6 +382,18 @@ private fun DriveModeCard(s: Settings) {
                 }
             }
         }
+        SwitchRow("Assombrir la nuit", "De 20 h à 7 h, l'écran du mode conduite est atténué pour ne pas éblouir", s.nightDim) { on ->
+            ObdManager.updateSettings { it.copy(nightDim = on) }
+        }
+        SwitchRow("Conseil moteur froid", "Sous 60 °C : bandeau « évitez les hauts régimes » et passage des vitesses conseillé 500 tr/min plus tôt", s.coldAdvice) { on ->
+            ObdManager.updateSettings { it.copy(coldAdvice = on) }
+        }
+        val gears = ObdManager.activeVehicle().gearRatios.size
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (gears >= 2) "Rapport engagé : $gears rapports appris" else "Rapport engagé : apprentissage en cours (roulez quelques km en passant les vitesses)",
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            if (gears > 0) TextButton(onClick = { ObdManager.resetGears() }) { Text("Réapprendre") }
+        }
         Text("Mesures à droite du compte-tours", fontWeight = FontWeight.SemiBold)
         Text("Choisissez jusqu'à 8 mesures affichées en grand pendant la conduite (${s.driveMetrics.size}/8). Plus il y en a, plus les chiffres sont petits.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

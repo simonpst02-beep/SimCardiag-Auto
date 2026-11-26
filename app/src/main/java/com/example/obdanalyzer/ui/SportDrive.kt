@@ -75,7 +75,10 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
     val accent = st.accent
     val alert = l.alerts.firstOrNull { it.level != Level.OK }
     val rpm = l.values["rpm"]
-    val shift = shiftRpmFor(s, v)
+    val cool = l.values["cool"]
+    val cold = s.coldAdvice && cool != null && cool < 60
+    // moteur froid : on passe les vitesses plus tôt
+    val shift = shiftRpmFor(s, v) - if (cold) 500 else 0
     val maxRpm = if (v.fuel == Fuel.DIESEL) 5000 else 7000
     val others = s.driveMetrics.filter { it != "speed" && it != "rpm" }.mapNotNull { ObdManager.metric(it) }.take(6)
     Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(st.bgCenter, st.bgEdge), radius = 1400f))
@@ -90,12 +93,30 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     Text((if (l.conn == Conn.RECONNECTING) "Reconnexion…" else v.name).uppercase(), color = Color.White.copy(alpha = 0.7f),
                         letterSpacing = 3.sp, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                    Text(clockText(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp, fontFamily = st.family)
+                    Spacer(Modifier.width(14.dp))
                     OutlinedButton(onClick = onExit, border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)), contentPadding = PaddingValues(horizontal = 14.dp)) {
                         Icon(Icons.Rounded.Close, null, tint = Color.White); Spacer(Modifier.width(4.dp)); Text("Quitter", color = Color.White)
                     }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Tacho(rpm, l.values["speed"], s, shift, maxRpm, st)
+                    // rapport engagé, en haut à droite du compte-tours
+                    l.values["gear"]?.let { g ->
+                        Box(Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 4.dp).size(64.dp).clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.06f)).border(2.dp, accent, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                            Text(g.toInt().toString(), color = st.text, fontSize = 38.sp, fontWeight = FontWeight.Black, fontFamily = st.family,
+                                fontStyle = if (st.italic) FontStyle.Italic else FontStyle.Normal)
+                        }
+                    }
+                    // consommation instantanée comparée à la moyenne
+                    ConsBar(l, v, st, Modifier.align(Alignment.BottomCenter).padding(bottom = if (alert != null || cold) 52.dp else 6.dp).fillMaxWidth(0.62f))
+                    if (cold && alert == null) {
+                        Row(Modifier.align(Alignment.BottomCenter).clip(RoundedCornerShape(14.dp)).background(Color(0xFF2EC7FF)).padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text("Moteur froid (${cool!!.toInt()} °C) : évitez les hauts régimes", color = Color.Black, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
+                    }
                     if (alert != null) {
                         val c = levelColor(alert.level)
                         Row(Modifier.align(Alignment.BottomCenter).clip(RoundedCornerShape(14.dp)).background(c).padding(horizontal = 14.dp, vertical = 8.dp),
@@ -121,6 +142,8 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
                 }
             }
         }
+        // la nuit, tout l'écran est assombri pour ne pas éblouir
+        if (s.nightDim && isNight()) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
     }
 }
 
@@ -312,5 +335,34 @@ fun DriveBackground(bg: com.example.obdanalyzer.core.DriveBg, st: DriveStyle, mo
             }
             else -> Unit
         }
+    }
+}
+
+
+/** Heure actuelle, rafraîchie toutes les 10 s. */
+@Composable
+fun clockText(): String {
+    val t by androidx.compose.runtime.produceState(java.text.SimpleDateFormat("HH:mm", java.util.Locale.FRANCE).format(java.util.Date())) {
+        while (true) { value = java.text.SimpleDateFormat("HH:mm", java.util.Locale.FRANCE).format(java.util.Date()); kotlinx.coroutines.delay(10_000) }
+    }
+    return t
+}
+
+fun isNight(): Boolean { val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY); return h >= 20 || h < 7 }
+
+/** Barre de consommation : verte sous la moyenne du véhicule, rouge au-dessus. */
+@Composable
+private fun ConsBar(l: Live, v: Vehicle, st: DriveStyle, modifier: Modifier) {
+    val cons = l.values["cons"] ?: return
+    if (l.consUnit != "L/100km") return
+    val avg = l.stats.avgConsumption ?: v.lastAvgCons ?: return
+    val ratio = (cons / (avg * 2)).toFloat().coerceIn(0f, 1f)
+    val c = if (cons <= avg) Color(0xFF2EE59D) else if (cons <= avg * 1.5) Color(0xFFFFC233) else Color(0xFFFF2D2D)
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.08f))) {
+            Box(Modifier.fillMaxWidth(ratio).fillMaxHeight().clip(RoundedCornerShape(50)).background(c))
+            Box(Modifier.fillMaxWidth(0.5f).fillMaxHeight()) { Box(Modifier.align(Alignment.CenterEnd).width(2.dp).fillMaxHeight().background(Color.White)) }
+        }
+        Text("${ObdManager.fmt(cons)} L/100 · moyenne ${ObdManager.fmt(avg)}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
     }
 }
