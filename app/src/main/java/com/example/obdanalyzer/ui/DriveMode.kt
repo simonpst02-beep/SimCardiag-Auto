@@ -38,6 +38,8 @@ fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding().displayCutoutPadding()) {
         val landscape = maxWidth > maxHeight
         val compact = maxHeight < 480.dp          // téléphone couché : peu de hauteur
+        // Autoradio (écran large) : mode conduite sport
+        if (landscape && maxWidth >= 700.dp) { SportDrive(l, v, s, onExit); return@BoxWithConstraints }
         val gap = if (compact) 8.dp else 12.dp
         Column(Modifier.fillMaxSize().padding(if (compact) 10.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(gap)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

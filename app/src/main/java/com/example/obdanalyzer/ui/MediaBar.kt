@@ -53,3 +53,38 @@ fun MediaBar(modifier: Modifier = Modifier, size: Dp = 56.dp) {
         }
     }
 }
+
+/** Même boutons en colonne, pour la gauche du mode conduite : volume + en haut, volume − en bas, comme un bouton physique. */
+@Composable
+fun MediaColumn(modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val st = com.example.obdanalyzer.core.ObdManager.settings.collectAsState().value
+    var playing by remember { mutableStateOf(MediaKeys.isPlaying(ctx)) }
+    LaunchedEffect(Unit) { while (true) { playing = MediaKeys.isPlaying(ctx); delay(1000) } }
+    val items = buildList<Triple<androidx.compose.ui.graphics.vector.ImageVector, String, () -> Unit>> {
+        if (st.spotifyButton) add(Triple(Icons.Rounded.MusicNote, "Ouvrir Spotify", { MediaKeys.openSpotify(ctx); Unit }))
+        if (st.mediaButtons) {
+            add(Triple(Icons.AutoMirrored.Rounded.VolumeUp, "Monter le volume", { MediaKeys.volumeUp(ctx); Unit }))
+            add(Triple(Icons.Rounded.SkipPrevious, "Morceau précédent", { MediaKeys.previous(ctx); Unit }))
+            add(Triple(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pause" else "Lecture",
+                { MediaKeys.playPause(ctx); playing = !playing }))
+            add(Triple(Icons.Rounded.SkipNext, "Morceau suivant", { MediaKeys.next(ctx); Unit }))
+            add(Triple(Icons.AutoMirrored.Rounded.VolumeDown, "Baisser le volume", { MediaKeys.volumeDown(ctx); Unit }))
+        }
+    }
+    val accent = MaterialTheme.colorScheme.primary
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { (icon, desc, action) ->
+            val main = desc == "Pause" || desc == "Lecture"
+            val sp = desc == "Ouvrir Spotify"
+            Surface(onClick = action, shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                color = when { sp -> Color(0xFF1DB954); main -> accent; else -> Color.White.copy(alpha = 0.07f) },
+                border = if (main || sp) null else androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, desc, Modifier.size(30.dp), tint = when { sp -> Color.Black; main -> MaterialTheme.colorScheme.onPrimary; else -> Color.White })
+                }
+            }
+        }
+    }
+}
