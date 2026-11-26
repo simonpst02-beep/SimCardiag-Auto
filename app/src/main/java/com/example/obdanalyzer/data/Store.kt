@@ -81,6 +81,7 @@ class Store(private val context: Context) {
             driveTheme = enumOr(o.optString("driveTheme"), com.example.obdanalyzer.core.DriveTheme.RACE),
             driveFont = enumOr(o.optString("driveFont"), com.example.obdanalyzer.core.DriveFont.SPORT),
             driveAccent = o.optLong("driveAccent", 0),
+            driveBg = enumOr(o.optString("driveBg"), com.example.obdanalyzer.core.DriveBg.AUTO),
             spotifyButton = o.optBoolean("spotifyButton", false),
             githubToken = o.optString("githubToken", ""),
         )
@@ -101,7 +102,7 @@ class Store(private val context: Context) {
             .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)
             .put("layoutMode", s.layoutMode.name).put("voiceAlerts", s.voiceAlerts).put("shiftLight", s.shiftLight)
             .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("showHealth", s.showHealth).put("gpsCorrect", s.gpsCorrect).put("dangerZones", s.dangerZones).put("maintNotif", s.maintNotif).put("mediaButtons", s.mediaButtons).put("shiftRpm", s.shiftRpm).put("legacyLink", s.legacyLink)
-            .put("driveTheme", s.driveTheme.name).put("driveFont", s.driveFont.name).put("driveAccent", s.driveAccent).put("spotifyButton", s.spotifyButton)
+            .put("driveTheme", s.driveTheme.name).put("driveFont", s.driveFont.name).put("driveAccent", s.driveAccent).put("driveBg", s.driveBg.name).put("spotifyButton", s.spotifyButton)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 

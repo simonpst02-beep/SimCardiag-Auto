@@ -80,7 +80,7 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
     val others = s.driveMetrics.filter { it != "speed" && it != "rpm" }.mapNotNull { ObdManager.metric(it) }.take(6)
     Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(st.bgCenter, st.bgEdge), radius = 1400f))
         .systemBarsPadding().displayCutoutPadding()) {
-        if (st.carbon) CarbonWeave(Modifier.fillMaxSize())
+        DriveBackground(s.driveBg, st, Modifier.fillMaxSize())
         Row(Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (s.mediaButtons || s.spotifyButton) MediaColumn(Modifier.width(78.dp).fillMaxHeight(), accent)
             Column(Modifier.weight(1.35f).fillMaxHeight()) {
@@ -231,5 +231,86 @@ fun CarbonWeave(modifier: Modifier) {
             y += c; row++
         }
         drawRect(Brush.radialGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)), radius = size.maxDimension * 0.7f))
+    }
+}
+
+
+/** Dessine le fond choisi ; « Du thème » = carbone pour les thèmes Carbone, halo pour les autres. */
+@Composable
+fun DriveBackground(bg: com.example.obdanalyzer.core.DriveBg, st: DriveStyle, modifier: Modifier) {
+    val kind = if (bg == com.example.obdanalyzer.core.DriveBg.AUTO)
+        (if (st.carbon) com.example.obdanalyzer.core.DriveBg.CARBON else com.example.obdanalyzer.core.DriveBg.GLOW) else bg
+    if (kind == com.example.obdanalyzer.core.DriveBg.CARBON) { CarbonWeave(modifier); return }
+    val a = st.accent
+    Canvas(modifier) {
+        val W = size.width; val H = size.height
+        when (kind) {
+            com.example.obdanalyzer.core.DriveBg.GLOW -> {
+                drawCircle(Brush.radialGradient(listOf(a.copy(alpha = 0.22f), Color.Transparent), Offset(W * 0.42f, H * 0.55f), H * 0.75f), H * 0.75f, Offset(W * 0.42f, H * 0.55f))
+                drawRect(Brush.verticalGradient(listOf(Color.Transparent, a.copy(alpha = 0.10f)), startY = H * 0.7f))
+            }
+            com.example.obdanalyzer.core.DriveBg.SPEED -> {
+                for (i in 0 until 26) {
+                    val y = H * ((i * 37 % 100) / 100f); val x = W * ((i * 53 % 100) / 100f)
+                    val len = W * (0.12f + 0.10f * (i % 4))
+                    drawLine(a.copy(alpha = 0.05f + 0.05f * (i % 3)), Offset(x, y), Offset(x + len, y - len * 0.18f), 2f + (i % 3), StrokeCap.Round)
+                }
+            }
+            com.example.obdanalyzer.core.DriveBg.HEX -> {
+                val r = 26f; val dx = r * 1.732f; val dy = r * 1.5f
+                var row = 0; var y = 0f
+                while (y < H + r) {
+                    var x = if (row % 2 == 0) 0f else dx / 2
+                    while (x < W + r) {
+                        val path = androidx.compose.ui.graphics.Path()
+                        for (k in 0..5) {
+                            val ang = Math.toRadians(60.0 * k + 30)
+                            val px = x + (r * cos(ang)).toFloat(); val py = y + (r * sin(ang)).toFloat()
+                            if (k == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                        }
+                        path.close()
+                        drawPath(path, Color.White.copy(alpha = 0.05f), style = Stroke(1.5f))
+                        x += dx
+                    }
+                    y += dy; row++
+                }
+                drawRect(Brush.radialGradient(listOf(a.copy(alpha = 0.10f), Color.Black.copy(alpha = 0.45f)), Offset(W / 2, H / 2), W * 0.7f))
+            }
+            com.example.obdanalyzer.core.DriveBg.GRID -> {
+                val g = 40f
+                var x = 0f; while (x < W) { drawLine(a.copy(alpha = 0.06f), Offset(x, 0f), Offset(x, H), 1f); x += g }
+                var y = 0f; while (y < H) { drawLine(a.copy(alpha = 0.06f), Offset(0f, y), Offset(W, y), 1f); y += g }
+                drawRect(Brush.radialGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)), Offset(W / 2, H / 2), W * 0.65f))
+            }
+            com.example.obdanalyzer.core.DriveBg.BRUSHED -> {
+                var y = 0f; var i = 0
+                while (y < H) { drawLine(Color.White.copy(alpha = if (i % 3 == 0) 0.035f else 0.015f), Offset(0f, y), Offset(W, y), 1f); y += 2f; i++ }
+                drawRect(Brush.linearGradient(listOf(Color.White.copy(alpha = 0.06f), Color.Transparent, Color.White.copy(alpha = 0.04f)), Offset(0f, 0f), Offset(W, H)))
+            }
+            com.example.obdanalyzer.core.DriveBg.STRIPES -> {
+                // deux bandes de course en biais derrière le compte-tours
+                fun band(x0: Float, w: Float, al: Float) = drawPath(androidx.compose.ui.graphics.Path().apply {
+                    moveTo(W * x0, 0f); lineTo(W * (x0 + w), 0f); lineTo(W * (x0 + w - 0.25f), H); lineTo(W * (x0 - 0.25f), H); close()
+                }, a.copy(alpha = al))
+                band(0.42f, 0.06f, 0.10f); band(0.50f, 0.025f, 0.08f)
+            }
+            com.example.obdanalyzer.core.DriveBg.CHECKER -> {
+                // damier en fondu dans le coin bas droit
+                val c = 22f
+                var y = H * 0.55f; var row = 0
+                while (y < H) {
+                    var x = W * 0.55f; var col = 0
+                    while (x < W) {
+                        if ((row + col) % 2 == 0) {
+                            val fade = (((x - W * 0.55f) / (W * 0.45f)) * ((y - H * 0.55f) / (H * 0.45f))).coerceIn(0f, 1f)
+                            drawRect(Color.White.copy(alpha = 0.07f * fade), Offset(x, y), Size(c, c))
+                        }
+                        x += c; col++
+                    }
+                    y += c; row++
+                }
+            }
+            else -> Unit
+        }
     }
 }

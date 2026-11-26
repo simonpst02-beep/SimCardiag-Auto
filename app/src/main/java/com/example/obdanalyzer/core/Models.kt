@@ -24,6 +24,12 @@ enum class DriveTheme(val label: String, val bgCenter: Long, val bgEdge: Long, v
     RETRO_90("Compteur années 90", 0xFF0E0C08, 0xFF040403, 0xFFFF8A00, 0xFFFFB347, 0xFFFF8A00, 0xFFFF3B1F, text = 0xFFFFB347),
 }
 
+/** Fonds du mode conduite, teintés de la couleur du thème. */
+enum class DriveBg(val label: String) {
+    AUTO("Du thème"), PLAIN("Uni"), GLOW("Halo"), SPEED("Lignes de vitesse"), HEX("Calandre"),
+    GRID("Grille tech"), BRUSHED("Métal brossé"), STRIPES("Bandes course"), CHECKER("Drapeau"), CARBON("Carbone"),
+}
+
 /** Polices du mode conduite (polices de l'appareil, aucun téléchargement). */
 enum class DriveFont(val label: String) { SPORT("Sport (italique)"), MODERN("Moderne"), DIGITAL("Digital"), CLASSIC("Classique") }
 
@@ -198,7 +204,8 @@ data class Settings(
     // Apparence du mode conduite sport
     val driveTheme: DriveTheme = DriveTheme.RACE,
     val driveFont: DriveFont = DriveFont.SPORT,
-    val driveAccent: Long = 0,                // 0 = couleur du thème, sinon couleur choisie (ARGB)                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
+    val driveAccent: Long = 0,                // 0 = couleur du thème, sinon couleur choisie (ARGB)
+    val driveBg: DriveBg = DriveBg.AUTO,                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
     val drivingLock: Boolean = true,
     val showHealth: Boolean = true,           // carte « État du véhicule » sur l'accueil
     // GPS

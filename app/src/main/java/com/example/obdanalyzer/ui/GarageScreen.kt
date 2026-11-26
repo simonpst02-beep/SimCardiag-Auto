@@ -342,6 +342,22 @@ private fun DriveModeCard(s: Settings) {
                 }
             }
         }
+        Text("Fond", fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val stl = driveStyle(s)
+            com.example.obdanalyzer.core.DriveBg.entries.forEach { b ->
+                val on = s.driveBg == b
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(96.dp, 56.dp).clip(RoundedCornerShape(12.dp))
+                        .background(Brush.radialGradient(listOf(stl.bgCenter, stl.bgEdge)))
+                        .border(if (on) 3.dp else 1.dp, if (on) stl.accent else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                        .clickable { ObdManager.updateSettings { it.copy(driveBg = b) } }) {
+                        DriveBackground(b, stl, Modifier.matchParentSize())
+                    }
+                    Text(b.label, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
         Text("Police des chiffres", fontWeight = FontWeight.SemiBold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             com.example.obdanalyzer.core.DriveFont.entries.forEach { f ->
