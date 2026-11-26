@@ -170,12 +170,13 @@ private fun SportTile(name: String, value: String, unit: String, lvl: Level?, ac
         .background(Brush.linearGradient(listOf(Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.02f))))
         .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))) {
         val density = LocalDensity.current
+        val tileH = maxHeight; val tileW = maxWidth
         Box(Modifier.width(5.dp).fillMaxHeight().background(bar))
         Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 10.dp, top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.Center) {
             Text(name.uppercase(), fontSize = 12.sp, letterSpacing = 1.5.sp, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 fontWeight = FontWeight.Bold)
-            val byH = maxHeight * 0.42f
-            val byW = maxWidth / (maxOf(value.length, 2) * 0.66f)
+            val byH = tileH * 0.42f
+            val byW = tileW / (maxOf(value.length, 2) * 0.66f)
             val fs = with(density) { minOf(byH, byW).coerceIn(16.dp, 72.dp).toSp() }
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(value, fontSize = fs, lineHeight = fs, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic,
