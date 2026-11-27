@@ -15,10 +15,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +75,8 @@ fun driveStyle(s: Settings): DriveStyle {
 @Composable
 fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
     val obd = LocalObd.current
+    var showSettings by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (showSettings) DriveSettingsSheet(s) { showSettings = false }
     val st = driveStyle(s)
     val accent = st.accent
     val alert = l.alerts.firstOrNull { it.level != Level.OK }
@@ -94,7 +100,13 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
                     Text((if (l.conn == Conn.RECONNECTING) "Reconnexion…" else v.name).uppercase(), color = Color.White.copy(alpha = 0.7f),
                         letterSpacing = 3.sp, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
                     Text(clockText(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 22.sp, fontFamily = st.family)
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(10.dp))
+                    // raccourci vers les réglages du mode conduite (désactivé en roulant si les commandes sont limitées)
+                    val moving = s.drivingLock && (l.values["speed"] ?: 0.0) > 10
+                    IconButton(onClick = { showSettings = true }, enabled = !moving) {
+                        Icon(Icons.Rounded.Tune, "Réglages du mode conduite", tint = Color.White.copy(alpha = if (moving) 0.3f else 1f))
+                    }
+                    Spacer(Modifier.width(4.dp))
                     OutlinedButton(onClick = onExit, border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)), contentPadding = PaddingValues(horizontal = 14.dp)) {
                         Icon(Icons.Rounded.Close, null, tint = Color.White); Spacer(Modifier.width(4.dp)); Text("Quitter", color = Color.White)
                     }
@@ -364,5 +376,19 @@ private fun ConsBar(l: Live, v: Vehicle, st: DriveStyle, modifier: Modifier) {
             Box(Modifier.fillMaxWidth(0.5f).fillMaxHeight()) { Box(Modifier.align(Alignment.CenterEnd).width(2.dp).fillMaxHeight().background(Color.White)) }
         }
         Text("${ObdManager.fmt(cons)} L/100 · moyenne ${ObdManager.fmt(avg)}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.6f))
+    }
+}
+
+
+/** Réglages du mode conduite par-dessus l'écran : thème, fond, police, couleur, mesures… modifiés en direct. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DriveSettingsSheet(s: Settings, onClose: () -> Unit) {
+    val live by ObdManager.settings.collectAsState()
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
+            DriveModeCard(live)
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }

@@ -70,6 +70,17 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice|location" />
 
+        <!-- Contrôle de la musique : permet de piloter directement l'appli qui joue -->
+        <service
+            android:name=".service.MediaListener"
+            android:exported="true"
+            android:label="SimCarDiag Auto : boutons musique"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".receiver.AutoStartReceiver"
             android:exported="true">

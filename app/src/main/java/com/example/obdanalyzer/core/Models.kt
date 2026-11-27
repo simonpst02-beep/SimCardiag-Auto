@@ -122,6 +122,10 @@ data class Vehicle(
     val fuelAutoSet: Boolean = false,
     /** Rapports de boîte appris en roulant : km/h pour 1 000 tr/min, du 1er au dernier. */
     val gearRatios: List<Double> = emptyList(),
+    /** Nombre de vitesses de la boîte (5 ou 6). */
+    val gearCount: Int = 5,
+    /** Version de l'apprentissage : les rapports appris par l'ancienne méthode (moins fiable) sont ignorés. */
+    val gearV: Int = 2,
 )
 
 data class TripSummary(
@@ -218,7 +222,7 @@ data class Settings(
     val dangerZones: Boolean = false,         // annonce des zones de danger (radars fixes, sans position exacte)
     val maintNotif: Boolean = true,           // rappels d'entretien par notification          // corriger la vitesse, les km et la consommation avec l'écart compteur / GPS
     val mediaButtons: Boolean = true,
-    val spotifyButton: Boolean = false,       // raccourci Spotify, indépendant des boutons musique
+    val spotifyButton: Boolean = true,       // raccourci Spotify, indépendant des boutons musique
     // Mises à jour
     val autoUpdateCheck: Boolean = true,
     val githubToken: String = "",         // seulement si le dépôt GitHub est privé

@@ -670,45 +670,76 @@ object ObdManager {
 
     // ---------------------------------------------------------------- rapports de boîte
 
-    // regroupement des rapports km/h pour 1 000 tr/min : centre, nombre d'échantillons
-    private val gearClusters = mutableListOf<DoubleArray>()
-    private var prevSpeedForGear: Double? = null
+    // Histogramme des rapports km/h pour 1 000 tr/min, en cases de 2 % (échelle logarithmique de 3 à 60)
+    private val gearBins = DoubleArray(160)
+    private val recentRatios = ArrayDeque<Pair<Long, Double>>()
     private var gearSaveTimer = 0.0
+    private var gearSeeded = false
+    private var shownGear: Int? = null
+    private var gearCandidate: Int? = null
+    private var gearCandidateSince = 0L
+
+    private fun bin(r: Double) = (kotlin.math.ln(r / 3.0) / kotlin.math.ln(1.02)).toInt()
+    private fun binRatio(b: Int) = 3.0 * Math.pow(1.02, b + 0.5)
+
+    /** Rapport vitesse / régime stable depuis au moins [ms] (à ±[tol] près) : sinon embrayage, changement de vitesse ou patinage. */
+    private fun stableRatio(ms: Long, tol: Double): Double? {
+        if (recentRatios.size < 3) return null
+        val now = recentRatios.last().first
+        if (now - recentRatios.first().first < ms) return null
+        val win = recentRatios.filter { now - it.first <= ms }.map { it.second }
+        val mean = win.average()
+        return if (win.all { kotlin.math.abs(it - mean) / mean < tol }) mean else null
+    }
 
     /**
-     * Apprend les rapports : en régime stable (ni embrayage ni accélération forte), le rapport vitesse / régime
-     * est constant pour une vitesse donnée. On regroupe les valeurs proches (à 6 % près) ; les groupes
-     * assez fournis deviennent les rapports, triés du 1er au 5e (ou 6e).
+     * Apprend les rapports de la boîte : on ne garde que les moments où vitesse et régime restent
+     * proportionnels pendant 1,5 s (jamais pendant un changement de vitesse ni embrayage enfoncé).
+     * Les valeurs s'accumulent dans un histogramme ; ses pics les plus marqués, bien séparés,
+     * deviennent les rapports (autant que le nombre de vitesses de la voiture).
      */
     private fun learnGear(v: Vehicle, speed: Double, rpm: Double, dt: Double) {
-        val prev = prevSpeedForGear; prevSpeedForGear = speed
-        if (speed < 8 || rpm < 1000 || dt !in 0.05..2.0 || prev == null) return
-        if (kotlin.math.abs(speed - prev) / dt > 4.0) return          // changement de vitesse ou embrayage en cours
-        val r = speed / rpm * 1000
-        if (gearClusters.isEmpty()) v.gearRatios.forEach { gearClusters += doubleArrayOf(it, 50.0) }
-        val near = gearClusters.minByOrNull { kotlin.math.abs(it[0] - r) / it[0] }
-        if (near != null && kotlin.math.abs(near[0] - r) / near[0] < 0.06) {
-            near[1] += 1.0
-            near[0] += (r - near[0]) / near[1].coerceAtMost(200.0)
-        } else if (gearClusters.size < 8) gearClusters += doubleArrayOf(r, 1.0)
+        val now = System.currentTimeMillis()
+        if (speed < 5 || rpm < 900) { recentRatios.clear(); return }
+        recentRatios.addLast(now to speed / rpm * 1000)
+        while (recentRatios.isNotEmpty() && now - recentRatios.first().first > 2000) recentRatios.removeFirst()
+        if (!gearSeeded) { gearSeeded = true; v.gearRatios.forEach { r -> bin(r).takeIf { it in gearBins.indices }?.let { gearBins[it] += 80.0 } } }
+        if (speed < 12 || rpm < 1100 || rpm > 4200 || dt !in 0.02..2.0) return
+        val r = stableRatio(1500, 0.025) ?: return
+        val b = bin(r)
+        if (b in gearBins.indices) gearBins[b] += dt
         gearSaveTimer += dt
-        if (gearSaveTimer > 30) {
+        if (gearSaveTimer > 20) {
             gearSaveTimer = 0.0
-            val learned = gearClusters.filter { it[1] >= 25 }.map { it[0] }.sorted().take(6)
+            // lissage sur 3 cases, puis pics séparés d'au moins 12 % (6 cases), les plus fournis
+            val sm = DoubleArray(gearBins.size) { i -> (i - 1..i + 1).filter { it in gearBins.indices }.sumOf { gearBins[it] } }
+            val peaks = mutableListOf<Int>()
+            sm.indices.sortedByDescending { sm[it] }.forEach { i ->
+                if (sm[i] >= 20 && peaks.none { kotlin.math.abs(it - i) < 6 } && peaks.size < v.gearCount) peaks += i
+            }
+            val learned = peaks.sorted().map { binRatio(it) }
             if (learned.size >= 2 && learned != v.gearRatios) updateVehicle(v.id) { it.copy(gearRatios = learned) }
         }
     }
 
-    /** Rapport engagé (1, 2, 3…) si le rapport vitesse / régime correspond à un rapport appris (à 7 % près). */
+    /**
+     * Rapport engagé : affiché seulement si le rapport vitesse / régime est stable et proche (5 %) d'un rapport appris,
+     * et confirmé pendant 0,6 s : plus de chiffre qui saute pendant les changements de vitesse.
+     */
     private fun gearOf(v: Vehicle, speed: Double, rpm: Double): Int? {
-        if (speed < 3 || rpm < 600 || v.gearRatios.size < 2) return null
-        val r = speed / rpm * 1000
+        // tant que tous les rapports ne sont pas appris, la numérotation serait fausse : on n'affiche rien
+        if (speed < 5 || rpm < 900 || v.gearRatios.size < v.gearCount) { shownGear = null; return null }
+        val r = stableRatio(500, 0.04) ?: return shownGear
         val i = v.gearRatios.indices.minByOrNull { kotlin.math.abs(v.gearRatios[it] - r) / v.gearRatios[it] } ?: return null
-        return if (kotlin.math.abs(v.gearRatios[i] - r) / v.gearRatios[i] < 0.07) i + 1 else null
+        val g = if (kotlin.math.abs(v.gearRatios[i] - r) / v.gearRatios[i] < 0.05) i + 1 else null
+        val now = System.currentTimeMillis()
+        if (g != gearCandidate) { gearCandidate = g; gearCandidateSince = now }
+        if (now - gearCandidateSince >= 600) shownGear = g
+        return shownGear
     }
 
     /** Oublier les rapports appris (après un changement de véhicule ou de boîte). */
-    fun resetGears() { gearClusters.clear(); updateActive { it.copy(gearRatios = emptyList()) } }
+    fun resetGears() { gearBins.fill(0.0); gearSeeded = true; recentRatios.clear(); shownGear = null; updateActive { it.copy(gearRatios = emptyList(), gearV = 2) } }
 
     private var lphSmooth: Double? = null
     private var consSource = ""
@@ -978,7 +1009,7 @@ object ObdManager {
     private fun endSession(msg: String?) {
         pollJob?.cancel()
         sessionDist = dist; sessionFuel = fuel; sessionEco = eco.score; sessionTips = eco.tips()
-        prevSpeedForGear = null
+        recentRatios.clear(); shownGear = null
         val file = logger?.stop()
         logger = null
         if (dist > 0.3 && sessionStart > 0) {

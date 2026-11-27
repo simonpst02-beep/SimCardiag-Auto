@@ -320,7 +320,7 @@ private fun CustomPidDialog(onDismiss: () -> Unit, onSave: (CustomPid) -> Unit) 
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DriveModeCard(s: Settings) {
+fun DriveModeCard(s: Settings) {
     SectionCard(Icons.Rounded.Fullscreen, LocalObd.current.engine, "Mode conduite") {
         Text("Thème", fontWeight = FontWeight.SemiBold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -388,9 +388,17 @@ private fun DriveModeCard(s: Settings) {
         SwitchRow("Conseil moteur froid", "Sous 60 °C : bandeau « évitez les hauts régimes » et passage des vitesses conseillé 500 tr/min plus tôt", s.coldAdvice) { on ->
             ObdManager.updateSettings { it.copy(coldAdvice = on) }
         }
-        val gears = ObdManager.activeVehicle().gearRatios.size
+        val av = ObdManager.activeVehicle()
+        val gears = av.gearRatios.size
+        Text("Rapport engagé", fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Nombre de vitesses :", style = MaterialTheme.typography.bodyMedium)
+            listOf(5, 6).forEach { n ->
+                FilterChip(selected = av.gearCount == n, onClick = { ObdManager.updateActive { it.copy(gearCount = n) }; ObdManager.resetGears() }, label = { Text("$n") })
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (gears >= 2) "Rapport engagé : $gears rapports appris" else "Rapport engagé : apprentissage en cours (roulez quelques km en passant les vitesses)",
+            Text(if (gears >= av.gearCount) "$gears rapports appris" else "Apprentissage : $gears/${av.gearCount} rapports. Roulez en passant toutes les vitesses, en restant quelques secondes sur chacune.",
                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
             if (gears > 0) TextButton(onClick = { ObdManager.resetGears() }) { Text("Réapprendre") }
         }
@@ -572,6 +580,18 @@ private fun CarCard(s: Settings) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SwitchRow("Boutons musique", "Volume −, précédent, lecture/pause, suivant et volume + en haut de l'écran et en mode conduite (radio, Spotify, YouTube Music…)", s.mediaButtons) { v ->
             ObdManager.updateSettings { it.copy(mediaButtons = v) }
+        }
+        run {
+            val ctxM = LocalContext.current
+            var access by remember { mutableStateOf(com.example.obdanalyzer.core.MediaKeys.hasAccess(ctxM)) }
+            androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { access = com.example.obdanalyzer.core.MediaKeys.hasAccess(ctxM); onPauseOrDispose { } }
+            if (access) Text("Contrôle de la musique autorisé : les boutons pilotent directement l'appli qui joue.",
+                style = MaterialTheme.typography.bodySmall, color = LocalObd.current.ok)
+            else {
+                Text("Sur beaucoup d'autoradios, les boutons ne marchent qu'avec cette autorisation : dans la liste qui s'ouvre, activez « SimCarDiag Auto ».",
+                    style = MaterialTheme.typography.bodySmall, color = LocalObd.current.warn)
+                FilledTonalButton(onClick = { com.example.obdanalyzer.core.MediaKeys.openAccessSettings(ctxM) }) { Text("Autoriser le contrôle de la musique") }
+            }
         }
         SwitchRow("Bouton Spotify", "Bouton vert en haut de l'écran et en mode conduite qui ouvre Spotify (ou sa page dans le Play Store s'il n'est pas installé)", s.spotifyButton) { v ->
             ObdManager.updateSettings { it.copy(spotifyButton = v) }
