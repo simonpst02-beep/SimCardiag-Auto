@@ -37,7 +37,7 @@ fun hint(key: String, v: Double?, l: Live, v0: Vehicle): Pair<String, Level?> {
             else -> "Température normale" to Level.OK
         }
         "oil" -> if (v >= 135) "Huile très chaude" to Level.BAD else if (v < 70) "Huile encore froide" to Level.WARN else "Normale" to Level.OK
-        "volt" -> if (rpm > 500) (if (v < 13) "L'alternateur ne charge plus" to Level.BAD else "Charge correcte" to Level.OK)
+        "volt" -> if (rpm > 500) (if (v < (ObdManager.settings.value.altLowV.takeIf { it > 0 } ?: 13.0)) "L'alternateur ne charge plus" to Level.BAD else "Charge correcte" to Level.OK)
                   else (if (v < 12.2) "Batterie faible" to Level.BAD else "Batterie en forme" to Level.OK)
         "fuel" -> {
             val avg = l.stats.avgConsumption ?: 6.5

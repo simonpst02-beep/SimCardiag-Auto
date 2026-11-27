@@ -59,6 +59,8 @@ class Store(private val context: Context) {
             speedAlertKmh = o.optInt("speedAlertKmh", 0),
             reserveKm = o.optInt("reserveKm", 60),
             batteryLowV = o.optDouble("batteryLowV", 12.2),
+            altLowV = o.optDouble("altLowV", 13.0),
+            altDelayS = o.optInt("altDelayS", 20),
             breakMinutes = o.optInt("breakMinutes", 120),
             fuelPrice = o.optDouble("fuelPrice", 1.85),
             keepTripsDays = o.optInt("keepTripsDays", 0),
@@ -98,7 +100,7 @@ class Store(private val context: Context) {
             .put("keepScreenOn", s.keepScreenOn).put("wallpaper", s.wallpaper.name).put("accent", s.accent.name).put("orientation", s.orientation.name).put("consUnit", s.consUnit.name)
             .put("tempUnit", s.tempUnit.name).put("autoDriveKmh", s.autoDriveKmh).put("autoRecord", s.autoRecord)
             .put("pollRate", s.pollRate.name).put("notifValues", s.notifValues).put("speedAlertKmh", s.speedAlertKmh)
-            .put("reserveKm", s.reserveKm).put("batteryLowV", s.batteryLowV).put("breakMinutes", s.breakMinutes)
+            .put("reserveKm", s.reserveKm).put("batteryLowV", s.batteryLowV).put("altLowV", s.altLowV).put("altDelayS", s.altDelayS).put("breakMinutes", s.breakMinutes)
             .put("fuelPrice", s.fuelPrice).put("keepTripsDays", s.keepTripsDays)
             .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
             .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)

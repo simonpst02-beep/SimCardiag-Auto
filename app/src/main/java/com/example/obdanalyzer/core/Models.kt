@@ -192,6 +192,10 @@ data class Settings(
     val speedAlertKmh: Int = 0,           // 0 = désactivé
     val reserveKm: Int = 60,
     val batteryLowV: Double = 12.2,
+    /** Alerte alternateur : tension moteur tournant sous ce seuil (0 = désactivée). */
+    val altLowV: Double = 13.0,
+    /** Durée pendant laquelle la tension doit rester sous le seuil avant d'alerter (s). */
+    val altDelayS: Int = 20,
     val breakMinutes: Int = 120,          // 0 = désactivé
     // Carburant & données
     val fuelPrice: Double = 1.85,

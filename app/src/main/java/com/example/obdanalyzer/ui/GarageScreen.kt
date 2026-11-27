@@ -474,6 +474,17 @@ private fun AlertsCard(s: Settings) {
         Text("Batterie faible au repos : sous ${"%.1f".format(s.batteryLowV)} V", fontWeight = FontWeight.SemiBold)
         Slider(value = s.batteryLowV.toFloat(), onValueChange = { v -> ObdManager.updateSettings { it.copy(batteryLowV = (v * 10).roundToInt() / 10.0) } },
             valueRange = 11.5f..12.6f, steps = 10)
+        Text(if (s.altLowV <= 0) "Alerte alternateur : désactivée" else "Alerte alternateur : moteur tournant sous ${"%.1f".format(s.altLowV)} V", fontWeight = FontWeight.SemiBold)
+        Slider(value = (if (s.altLowV <= 0) 11.9 else s.altLowV).toFloat(), onValueChange = { v ->
+                val r = (v * 10).roundToInt() / 10.0
+                ObdManager.updateSettings { it.copy(altLowV = if (r < 12.0) 0.0 else r) } },
+            valueRange = 11.9f..13.8f, steps = 18)
+        Text("Tout à gauche : désactivée. Sur certaines voitures, l'alternateur baisse volontairement la tension (12,6 à 13 V) quand la batterie est pleine : baissez le seuil si l'alerte sonne à tort.",
+            style = MaterialTheme.typography.bodySmall)
+        if (s.altLowV > 0) {
+            Text("Délai avant l'alerte alternateur", fontWeight = FontWeight.SemiBold)
+            ChipRow(listOf(5 to "5 s", 20 to "20 s", 60 to "1 min", 180 to "3 min"), s.altDelayS) { d -> ObdManager.updateSettings { it.copy(altDelayS = d) } }
+        }
         Text("Rappel de pause", fontWeight = FontWeight.SemiBold)
         ChipRow(listOf(0 to "Jamais", 90 to "1 h 30", 120 to "2 h", 180 to "3 h"), s.breakMinutes) { m -> ObdManager.updateSettings { it.copy(breakMinutes = m) } }
     }

@@ -898,6 +898,7 @@ object ObdManager {
     }
 
     private var inZone = false
+    private var altLowSince = 0L
     private var lastZoneCheck = 0L
 
     private fun buildAlerts(values: Map<String, Double>): List<Alert> {
@@ -912,7 +913,10 @@ object ObdManager {
         values["cool"]?.let { if (it >= s.tempLimit) a += Alert("cool", Level.BAD, "Le moteur chauffe trop (${it.toInt()} °C). Arrêtez-vous dès que possible et laissez refroidir avant de vérifier le liquide.") }
         values["oil"]?.let { if (it >= 135) a += Alert("oil", Level.BAD, "Huile moteur très chaude (${it.toInt()} °C). Levez le pied.") }
         values["volt"]?.let {
-            if (rpm > 500 && it < 13.0) a += Alert("alt", Level.BAD, "L'alternateur ne recharge plus la batterie (${"%.1f".format(it)} V). Faites-le contrôler rapidement.")
+            // sous le seuil pendant la durée réglée (évite les fausses alertes au démarrage ou sur un pic de consommation)
+            val now = System.currentTimeMillis()
+            if (s.altLowV > 0 && rpm > 500 && it < s.altLowV) { if (altLowSince == 0L) altLowSince = now } else altLowSince = 0L
+            if (altLowSince != 0L && now - altLowSince >= s.altDelayS * 1000L) a += Alert("alt", Level.BAD, "L'alternateur ne recharge plus la batterie (${"%.1f".format(it)} V). Faites-le contrôler rapidement.")
             if (rpm < 100 && it < s.batteryLowV) a += Alert("bat", Level.WARN, "Batterie faible (${"%.1f".format(it)} V) : le prochain démarrage pourrait être difficile.")
         }
         if (rpm >= s.rpmLimit) a += Alert("rpm", Level.WARN, "Régime élevé : passez la vitesse supérieure.")
