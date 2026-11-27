@@ -168,6 +168,7 @@ object ObdManager {
     fun init(context: Context) {
         if (::ctx.isInitialized) return
         ctx = context.applicationContext
+        EngineWatch.init(ctx)
         store = Store(ctx)
         alerts = AlertPlayer(ctx)
         _settings.value = store.loadSettings()
@@ -244,6 +245,21 @@ object ObdManager {
     }
 
     fun updateActive(f: (Vehicle) -> Vehicle) = updateVehicle(activeVehicle().id, f)
+
+    /** Observation de la surveillance moteur : une notification discrète (pas d'alarme sonore en roulant). */
+    fun engineNotice(title: String, text: String) {
+        val nm = ctx.getSystemService(android.app.NotificationManager::class.java) ?: return
+        if (android.os.Build.VERSION.SDK_INT >= 26)
+            nm.createNotificationChannel(android.app.NotificationChannel("engine", "Surveillance moteur", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+        val open = android.app.PendingIntent.getActivity(ctx, 0, android.content.Intent(ctx, com.example.obdanalyzer.MainActivity::class.java), android.app.PendingIntent.FLAG_IMMUTABLE)
+        runCatching {
+            nm.notify(2000 + (title.hashCode() and 0xFFF), androidx.core.app.NotificationCompat.Builder(ctx, "engine")
+                .setSmallIcon(com.example.obdanalyzer.R.drawable.ic_launcher_foreground)
+                .setContentTitle(title).setContentText(text)
+                .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(text))
+                .setContentIntent(open).setAutoCancel(true).build())
+        }
+    }
 
     fun addVehicle(name: String, fuel: Fuel): Vehicle {
         val v = Vehicle(name = name, fuel = fuel, maintenance = Presets.defaultMaintenance(0.0, System.currentTimeMillis()))
@@ -447,6 +463,7 @@ object ObdManager {
 
     private fun startSession() {
         sessionStart = System.currentTimeMillis()
+        EngineWatch.startSession(activeVehicle().id)
         eco = EcoTracker()
         dist = 0.0; fuel = 0.0; maxSpeed = 0.0; speedSum = 0.0; speedN = 0
         hist.clear()
@@ -561,7 +578,7 @@ object ObdManager {
     private fun fastKeys(): Set<String> {
         val v = activeVehicle()
         return v.layout.mapNotNull { it.metric }.toSet() + _settings.value.driveMetrics +
-            setOf("rpm", "speed", "maf", "map", "iat", "load", "fuelrate", "fcut", "stft", "ltft", "lambda", "fuel", "cool")
+            setOf("rpm", "speed", "maf", "map", "iat", "load", "fuelrate", "fcut", "stft", "ltft", "lambda", "fuel", "cool", "pedal")
     }
 
     /**
@@ -818,6 +835,8 @@ object ObdManager {
         val rpm = values["rpm"]
         // Pression de turbo : pression d'admission moins pression atmosphérique (en bar)
         values["map"]?.let { map -> values["boost"] = ((map - (values["baro"] ?: 101.3)) / 100.0).coerceAtLeast(-0.2) }
+        // Surveillance moteur (thermostat, turbo, EGR, ralenti)
+        EngineWatch.feed(values, dt)
         // Rapport engagé : appris sur les premiers kilomètres, puis reconnu en direct
         if (speed != null && rpm != null) {
             learnGear(v, speed, rpm, dt)
@@ -1063,6 +1082,7 @@ object ObdManager {
         gps.stop()
         recFile = null
         sessionStart = 0
+        EngineWatch.endSession()
         dist = 0.0
         // Bilan du trajet : distance, carburant, note d'éco-conduite et le conseil principal
         val summary = if (sessionDist > 0.3) {

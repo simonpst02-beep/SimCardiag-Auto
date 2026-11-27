@@ -95,6 +95,7 @@ private fun DiagOverview(l: Live, wide: Boolean) {
             }
         }
         ReportButton(Modifier.align(Alignment.CenterHorizontally))
+        EngineWatchCard()
         l.readiness?.let { r -> ReadinessCard(r) }
         l.vin?.let { vin ->
             SectionCard(Icons.Rounded.DirectionsCar, obd.speed, "Identification") {
@@ -199,4 +200,35 @@ fun SectionCard(icon: androidx.compose.ui.graphics.vector.ImageVector, color: an
             content()
         }
     }
+}
+
+
+/** Surveillance moteur : thermostat, turbo, vanne EGR, ralenti, comparés aux habitudes de la voiture. */
+@Composable
+fun EngineWatchCard() {
+    val obd = LocalObd.current
+    val notes by com.example.obdanalyzer.core.EngineWatch.notes.collectAsState()
+    var relearn by remember { mutableStateOf(false) }
+    SectionCard(Icons.Rounded.MonitorHeart, if (notes.isEmpty()) obd.ok else obd.warn, "Surveillance moteur") {
+        if (notes.isEmpty()) Text("Rien d'anormal. Pendant que vous roulez, l'appli surveille le thermostat, le turbo, la vanne EGR et la régularité du ralenti, " +
+            "en comparant la voiture à ses propres habitudes (apprises sur les premiers trajets).", style = MaterialTheme.typography.bodySmall)
+        val fmt = java.text.SimpleDateFormat("d MMM", java.util.Locale.FRANCE)
+        notes.forEach { n ->
+            Column {
+                Text("${n.title} · ${fmt.format(java.util.Date(n.at))}", fontWeight = FontWeight.SemiBold, color = obd.warn)
+                Text(n.text, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (notes.isNotEmpty()) TextButton(onClick = { com.example.obdanalyzer.core.EngineWatch.clear() }) { Text("Effacer") }
+            TextButton(onClick = { relearn = true }) { Text("Réapprendre après réparation") }
+        }
+    }
+    if (relearn) AlertDialog(
+        onDismissRequest = { relearn = false },
+        title = { Text("Tout réapprendre ?") },
+        text = { Text("À faire après une réparation (turbo, vanne EGR, thermostat, injecteur…) : l'appli oublie les valeurs habituelles et les réapprend sur les prochains trajets.") },
+        confirmButton = { TextButton(onClick = { relearn = false; com.example.obdanalyzer.core.EngineWatch.relearn() }) { Text("Réapprendre") } },
+        dismissButton = { TextButton(onClick = { relearn = false }) { Text("Annuler") } },
+    )
 }

@@ -208,6 +208,12 @@ private fun MaintenanceCard(v: Vehicle, liveKm: Double) {
             }
         }
         TextButton(onClick = { adding = true }) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Ajouter un rappel") }
+        val cdti = com.example.obdanalyzer.core.Presets.cdtiMaintenance(odo, System.currentTimeMillis())
+        val missing = cdti.filter { c -> v.maintenance.none { it.name == c.name } }
+        if (v.fuel == com.example.obdanalyzer.core.Fuel.DIESEL && missing.isNotEmpty())
+            TextButton(onClick = { ObdManager.updateVehicle(v.id) { it.copy(maintenance = it.maintenance + missing) } }) {
+                Icon(Icons.Rounded.Build, null); Spacer(Modifier.width(6.dp)); Text("Ajouter l'entretien type 1.3 CDTI (${missing.size})")
+            }
     }
     if (adding) {
         var name by remember { mutableStateOf("") }

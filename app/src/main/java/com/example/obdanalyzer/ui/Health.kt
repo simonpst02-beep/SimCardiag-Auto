@@ -15,6 +15,7 @@ fun health(l: Live, v: Vehicle): Health {
     if (l.conn == Conn.RECONNECTING) return Health(Level.WARN, "Reconnexion…", "Le boîtier ne répond plus, l'appli réessaie toute seule. Votre trajet continue d'être compté.")
     l.alerts.firstOrNull { it.level == Level.BAD }?.let { return Health(Level.BAD, "Attention", it.text) }
     l.alerts.firstOrNull { it.level == Level.WARN }?.let { return Health(Level.WARN, "À surveiller", it.text) }
+    com.example.obdanalyzer.core.EngineWatch.notes.value.firstOrNull()?.let { return Health(Level.WARN, it.title, it.text) }
     val cool = l.values["cool"]
     if (cool != null && cool < 65) return Health(Level.OK, "Tout va bien", "Le moteur est encore froid : évitez les hauts régimes quelques minutes.")
     val parts = mutableListOf<String>()

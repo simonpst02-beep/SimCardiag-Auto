@@ -253,6 +253,17 @@ object Presets {
         MaintItem(name = "Contrôle technique", everyMonths = 24, lastKm = odometerKm, lastDate = now),
         MaintItem(name = "Liquide de frein", everyMonths = 24, lastKm = odometerKm, lastDate = now),
     )
+
+    /** Points d'entretien propres au diesel 1.3 CDTI (Corsa D et cousins Fiat / Suzuki). */
+    fun cdtiMaintenance(odometerKm: Double, now: Long) = listOf(
+        MaintItem(name = "Filtre à gazole (purger l'eau)", everyKm = 30000, everyMonths = 24, lastKm = odometerKm, lastDate = now),
+        MaintItem(name = "Filtre d'habitacle", everyKm = 15000, everyMonths = 12, lastKm = odometerKm, lastDate = now),
+        MaintItem(name = "Contrôle chaîne de distribution (bruit à froid)", everyKm = 60000, lastKm = odometerKm, lastDate = now),
+        MaintItem(name = "Courroie d'accessoires et galets", everyKm = 60000, everyMonths = 48, lastKm = odometerKm, lastDate = now),
+        MaintItem(name = "Bougies de préchauffage", everyKm = 80000, lastKm = odometerKm, lastDate = now),
+        MaintItem(name = "Nettoyage vanne EGR", everyKm = 60000, lastKm = odometerKm, lastDate = now),
+        MaintItem(name = "Liquide de refroidissement", everyMonths = 60, lastKm = odometerKm, lastDate = now),
+    )
 }
 
 data class FuelEntry(
