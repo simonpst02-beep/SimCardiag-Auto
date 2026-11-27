@@ -574,7 +574,20 @@ object ObdManager {
         if (conn.legacy) { readStandardLegacy(values); return }
         pollLoop++
         val fast = fastKeys()
-        val pids = _live.value.supported.filter { it.code !in pidSkipped && (it.def.key in fast || pollLoop % 8 == 0) }
+        // Trois niveaux : régime, vitesse et turbo à chaque tour (réactivité à l'accélération),
+        // les autres mesures utiles en rotation sur 3 tours, le reste un tour sur 8.
+        // Une mesure non relue ce tour garde sa dernière valeur.
+        val hot = setOf("rpm", "speed", "map", "maf", "thr", "load")
+        val warm = _live.value.supported.filter { it.def.key in fast && it.def.key !in hot }
+        val pids = _live.value.supported.filter { p ->
+            p.code !in pidSkipped && when {
+                p.def.key in hot -> true
+                p.def.key in fast -> warm.indexOf(p) % 3 == pollLoop % 3
+                else -> pollLoop % 8 == 0
+            }
+        }.sortedBy { if (it.def.key in hot) 0 else 1 }
+        val prev = _live.value.values
+        for (p in _live.value.supported) if (p !in pids) prev[p.def.key]?.let { values[p.def.key] = it }
         if (pids.isEmpty()) return
         var answered = 0
         var timeouts = 0
@@ -729,12 +742,12 @@ object ObdManager {
     private fun gearOf(v: Vehicle, speed: Double, rpm: Double): Int? {
         // tant que tous les rapports ne sont pas appris, la numérotation serait fausse : on n'affiche rien
         if (speed < 5 || rpm < 900 || v.gearRatios.size < v.gearCount) { shownGear = null; return null }
-        val r = stableRatio(500, 0.04) ?: return shownGear
+        val r = stableRatio(300, 0.05) ?: return shownGear
         val i = v.gearRatios.indices.minByOrNull { kotlin.math.abs(v.gearRatios[it] - r) / v.gearRatios[it] } ?: return null
         val g = if (kotlin.math.abs(v.gearRatios[i] - r) / v.gearRatios[i] < 0.05) i + 1 else null
         val now = System.currentTimeMillis()
         if (g != gearCandidate) { gearCandidate = g; gearCandidateSince = now }
-        if (now - gearCandidateSince >= 600) shownGear = g
+        if (now - gearCandidateSince >= 250) shownGear = g
         return shownGear
     }
 

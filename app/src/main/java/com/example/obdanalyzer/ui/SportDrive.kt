@@ -164,7 +164,7 @@ fun SportDrive(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
 private fun Tacho(rpm: Double?, speed: Double?, s: Settings, shift: Int, maxRpm: Int, st: DriveStyle) {
     val accent = st.accent
     val target = ((rpm ?: 0.0) / maxRpm).toFloat().coerceIn(0f, 1f)
-    val frac by animateFloatAsState(target, tween(180), label = "rpm")
+    val frac by animateFloatAsState(target, tween(90), label = "rpm")
     val over = (rpm ?: 0.0) >= shift
     val blink by rememberInfiniteTransition(label = "shift").animateFloat(1f, 0.25f, infiniteRepeatable(tween(150), RepeatMode.Reverse), label = "b")
     val shiftFrac = (shift.toFloat() / maxRpm).coerceIn(0f, 1f)
